@@ -1,8 +1,6 @@
 
 // Gen mesh with:
-// gmsh test.geo -setnumber n 6 -setstring outfile square.msh -parse_and_exit
-
-
+// gmsh square.geo -setnumber n 4 -setstring outfile square.msh -parse_and_exit
 
 Point (1) = {0, 0, 0, 0.025};
 Point (2) = {1, 0, 0, 0.025};
