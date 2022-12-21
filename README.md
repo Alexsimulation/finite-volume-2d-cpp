@@ -41,10 +41,31 @@
 
 ## :star2: About the project
 
-This project aims to provide a massively MPI parallelizable framework to build finite volume solvers. For now, the scope of this project is to provie 2D solver capabilities, but it might be extended to 3D someday.
+This project aims to provide a MPI parallelizable framework to build finite volume solvers. For now, the scope of this project is to provie 2D solver capabilities, but it might be extended to 3D someday.
 
 In its current form, the user can specify one partial differential equation with any number of variables, and any number of boundary conditions. To enter the pde, the user must define the flux function in the finite volume formulation.
 
+## :wrench: Installation
+
+To install, clone the git repository into your installation directory of choice, and then export a variable FVHYPER_DIR with the path to this installation to your .bashrc. Per example, if I installed the files to a $HOME/softwares directory:
+
+```
+echo "export FVHYPER_DIR=$HOME/softwares/fvhyper" >> ~/.bashrc
+```
+
+Then, using *make*, a minimal makefile contents for a given script *main.cpp* should look like this:
+
+```
+SOURCES := $(shell find $(FVHYPER_SOURCEDIR)/fvhyper/src -name '*.cpp')
+
+INCLUDES := -I${FVHYPER_DIR}
+
+build:
+	mpic++ -o main main.cpp ${SOURCES} ${INCLUDES}
+
+```
+
+INCLUDES := -I${FVHYPER_DIR}
 
 ## :light_rail: Roadmap
 
