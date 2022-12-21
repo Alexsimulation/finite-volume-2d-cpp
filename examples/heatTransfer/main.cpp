@@ -76,7 +76,7 @@ namespace fvhyper {
         mesh& m
     ) {
         // Constant time step
-        dt = 1e-5;
+        dt = 1e-6;
     }
 
 
@@ -123,7 +123,7 @@ int main() {
     fvhyper::solverOptions options;
     options.max_step = 1000;
     options.max_time = 0.01;
-    options.print_interval = 50;
+    options.print_interval = 100;
 
     // Run solver
     std::vector<double> q;

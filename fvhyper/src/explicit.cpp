@@ -402,9 +402,7 @@ void run(
 
         if (step == 0) {
             calc_residuals(R0, qt, m, pool);
-        }
-
-        if (step % opt.print_interval == 0) {
+        } else if (step % opt.print_interval == 0) {
             
             double R[vars];
             calc_residuals(R, qt, m, pool);
