@@ -47,7 +47,7 @@ In its current form, the user can specify one partial differential equation with
 
 ## :wrench: Installation
 
-To install, clone the git repository into your installation directory of choice, and then export a variable FVHYPER_DIR with the path to this installation to your .bashrc. Per example, if I installed the files to a $HOME/softwares directory:
+For now, only Linux installations are supported. To install, clone the git repository into your installation directory of choice, and then export a variable FVHYPER_DIR with the path to this installation to your .bashrc. Per example, if I installed the files to a $HOME/softwares directory:
 
 ```
 echo "export FVHYPER_DIR=$HOME/softwares/fvhyper" >> ~/.bashrc
