@@ -27,8 +27,6 @@
 
 <div align="center">
 <h4>
-    <a href="https://alexsimulation.github.io/fvhyper/">Visit Website</a>
-  <span> · </span>
     <a href="https://github.com/Alexsimulation/fvhyper/wiki">Documentation</a>
   <span> · </span>
     <a href="https://github.com/Alexsimulation/fvhyper/issues/">Report Bug</a>
