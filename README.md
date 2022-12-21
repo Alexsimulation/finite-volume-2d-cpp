@@ -65,8 +65,6 @@ build:
 
 ```
 
-INCLUDES := -I${FVHYPER_DIR}
-
 ## :light_rail: Roadmap
 
  * [x] Mesh reader
