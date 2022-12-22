@@ -7,7 +7,12 @@
 // Implement an advection problem using fvhyper
 namespace fvhyper {
 
+    // Define global constants
     int vars = 2;
+    namespace solver {
+        bool do_calc_gradients = true;
+        bool do_calc_limiters = true;
+    }
 
     /*
         Define initial solution
@@ -32,10 +37,10 @@ namespace fvhyper {
         }
     }
 
-    // Here the limiter function is not used, default implementation
+    // Here the limiter function is the minmod limiter
     void limiter_func(double* l, const double* r) {
-        l[0] = 1.;
-        l[1] = 1.;
+        l[0] = std::max(0., std::min(r[0], 1.));
+        l[1] = std::max(0., std::min(r[1], 1.));
     }
 
     /*
@@ -56,8 +61,10 @@ namespace fvhyper {
         double* f,
         const double* qi,
         const double* qj,
-        const double* gi,
-        const double* gj,
+        const double* gxi,
+        const double* gyi,
+        const double* gxj,
+        const double* gyj,
         const double* l,
         const double* n,
         const double* di,
@@ -65,17 +72,25 @@ namespace fvhyper {
         const double area,
         const double len
     ) {
+        // Use linear interpolation
+        double qil[2];
+        double qjl[2];
+        for (uint i=0; i<2; ++i) {
+            qil[i] = qi[i] + (gxi[i] * di[0] + gyi[i] * di[1])*l[0];
+            qjl[i] = qj[i] + (gxj[i] * dj[0] + gyj[i] * dj[1])*l[1];
+        }
+
         // Advection, velocity beta = (u, v)
         double beta[2];
-        beta[0] = (qi[0] + qj[0])*0.5;
-        beta[1] = (qi[1] + qj[1])*0.5;
+        beta[0] = (qil[0] + qjl[0])*0.5;
+        beta[1] = (qil[1] + qjl[1])*0.5;
         // V = beta * n
         double V = beta[0]*n[0] + beta[1]*n[1];
 
         // Upwind flux
-        f[0] = 0.5*V*(qi[0] + qj[0]) - 0.5*std::abs(V)*(qj[0] - qi[0]); 
+        f[0] = 0.5*V*(qil[0] + qjl[0]) - 0.5*std::abs(V)*(qjl[0] - qil[0]); 
 
-        f[1] = 0.5*V*(qi[1] + qj[1]) - 0.5*std::abs(V)*(qj[1] - qi[1]);
+        f[1] = 0.5*V*(qil[1] + qjl[1]) - 0.5*std::abs(V)*(qjl[1] - qil[1]);
     }
 
     /*

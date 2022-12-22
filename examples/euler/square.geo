@@ -42,6 +42,6 @@ Mesh.PartitionCreatePhysicals = 1;
 // Should we save one mesh file per partition?
 Mesh.PartitionSplitMeshFiles = 1;
 
-//PartitionMesh n;
+PartitionMesh n;
 
 Save Str(outfile);

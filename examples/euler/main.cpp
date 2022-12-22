@@ -7,7 +7,13 @@
 // Implement the sod shock tube problem using fvhyper
 namespace fvhyper {
 
+
+    // Define global constants
     int vars = 4;
+    namespace solver {
+        bool do_calc_gradients = false;
+        bool do_calc_limiters = false;
+    }
 
     namespace consts {
         double gamma = 1.4;
@@ -59,8 +65,10 @@ namespace fvhyper {
         double* f,
         const double* qi,
         const double* qj,
-        const double* gi,
-        const double* gj,
+        const double* gxi,
+        const double* gyi,
+        const double* gxj,
+        const double* gyj,
         const double* l,
         const double* n,
         const double* di,

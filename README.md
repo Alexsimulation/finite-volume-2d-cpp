@@ -41,7 +41,7 @@
 
 ## :star2: About the project
 
-This project aims to provide a MPI parallelizable framework to build finite volume solvers. For now, the scope of this project is to provie 2D solver capabilities, but it might be extended to 3D someday.
+This project aims to provide an MPI parallelizable framework to build finite volume solvers. For now, the scope of this project is to provie 2D solver capabilities, but it might be extended to 3D someday.
 
 In its current form, the user can specify one partial differential equation with any number of variables, and any number of boundary conditions. To enter the pde, the user must define the flux function in the finite volume formulation.
 

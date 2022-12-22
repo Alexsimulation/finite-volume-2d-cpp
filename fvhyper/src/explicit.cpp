@@ -6,13 +6,15 @@
 namespace fvhyper {
 
 void calc_gradients(
-    std::vector<double>& g,
+    std::vector<double>& gx,
+    std::vector<double>& gy,
     const std::vector<double>& q,
     mesh& m
 ) {
     // reset gradients to be null
-    for (uint i=0; i<g.size(); ++i) {
-        g[i] = 0.;
+    for (uint i=0; i<gx.size(); ++i) {
+        gx[i] = 0.;
+        gy[i] = 0.;
     }
     double f[vars];
     // Update gradients using green gauss cell based
@@ -27,19 +29,26 @@ void calc_gradients(
             f[k] = (q[vars*i+k] + q[vars*j+k]) * 0.5 * le;
         }
         for (uint k=0; k<vars; ++k) {
-            g[2*vars*i+2*k] += f[k] * nx;
-            g[2*vars*i+2*k+1] += f[k] * ny;
+            gx[vars*i+k] += f[k] * nx;
+            gy[vars*i+k] += f[k] * ny;
 
-            g[2*vars*j+2*k] -= f[k] * nx;
-            g[2*vars*j+2*k+1] -= f[k] * ny;
+            gx[vars*j+k] -= f[k] * nx;
+            gy[vars*j+k] -= f[k] * ny;
         }
     }
     // normalize by cell areas
-    for (uint i=0; i<m.cellsAreas.size(); ++i) {
+    for (uint i=0; i<m.nRealCells; ++i) {
         const double invA = 1./m.cellsAreas[i];
         for (uint k=0; k<vars; ++k) {
-            g[2*vars*i+2*k] *= invA;
-            g[2*vars*i+2*k+1] *= invA;
+            gx[vars*i+k] *= invA;
+            gy[vars*i+k] *= invA;
+        }
+    }
+    // Set boundary gradients to zero
+    for (uint i=m.nRealCells; i<m.cellsAreas.size(); ++i) {
+        for (uint k=0; k<vars; ++k) {
+            gx[vars*i+k] = 0.;
+            gy[vars*i+k] = 0.;
         }
     }
 }
@@ -50,7 +59,8 @@ void calc_limiters(
     std::vector<double>& qmin,
     std::vector<double>& qmax,
     const std::vector<double>& q,
-    const std::vector<double>& g,
+    const std::vector<double>& gx,
+    const std::vector<double>& gy,
     mesh& m
 ) {
     // Reset limiters to two
@@ -89,7 +99,7 @@ void calc_limiters(
         ids[1] = j;
         for (auto& id : ids) {
             for (uint k=0; k<vars; ++k) {
-                double dqg = g[2*vars*id+2*k]*dx_i + g[2*vars*id+2*k+1]*dy_i;
+                double dqg = gx[vars*id+k]*dx_i + gy[vars*id+k]*dy_i;
                 if (dqg > std::max(qmax[vars*i+k] - q[vars*i+k], tol)) {
                     limiters[vars*id+k] = std::min(limiters[vars*id+k], (qmax[vars*id+k] - q[vars*id+k])/dqg);
                 } else if (dqg < std::min(qmin[vars*i+k] - q[vars*id+k], -tol)) {
@@ -101,12 +111,18 @@ void calc_limiters(
         }
     }
     // Compute limiters
-    for (uint i=0; i<m.cellsAreas.size(); ++i) {
+    for (uint i=0; i<m.nRealCells; ++i) {
         double r[vars];
         for (uint j=0; j<vars; ++j) {
             r[j] = limiters[vars*i + j];
         }
-        limiter_func(&limiters[i], r);
+        limiter_func(&limiters[vars*i], r);
+    }
+    // Set boundary cells limiters to be zero
+    for (uint i=m.nRealCells; i<m.cellsAreas.size(); ++i) {
+        for (uint j=0; j<vars; ++j) {
+            limiters[vars*i + j] = 0.;
+        }
     }
 }
 
@@ -114,7 +130,8 @@ void calc_limiters(
 void calc_time_derivatives(
     std::vector<double>& qt,
     const std::vector<double>& q,
-    const std::vector<double>& g,
+    const std::vector<double>& gx,
+    const std::vector<double>& gy,
     const std::vector<double>& limiters,
     mesh& m
 ) {
@@ -123,11 +140,12 @@ void calc_time_derivatives(
         qt[i] = 0.;
     }
     // Compute time derivatives qt of q
-    double f[vars];
-    double n[2];
-    double di[2];
-    double dj[2];
     for (uint e=0; e<m.edgesNodes.cols(); ++e) {
+        double f[vars];
+        double n[2];
+        double di[2];
+        double dj[2];
+
         const auto& i = m.edgesCells(e, 0);
         const auto& j = m.edgesCells(e, 1);
         const auto& le = m.edgesLengths[e];
@@ -135,8 +153,8 @@ void calc_time_derivatives(
         n[0] = m.edgesNormalsX[e];
         n[1] = m.edgesNormalsY[e];
 
-        const double cx = (m.nodesX[m.edgesNodes(e, 0)] + m.nodesX[m.edgesNodes(e, 1)])*0.5;
-        const double cy = (m.nodesY[m.edgesNodes(e, 0)] + m.nodesY[m.edgesNodes(e, 1)])*0.5;
+        const double cx = m.edgesCentersX[e];
+        const double cy = m.edgesCentersY[e];
 
         di[0] = cx - m.cellsCentersX[i];
         di[1] = cy - m.cellsCentersY[i];
@@ -146,7 +164,8 @@ void calc_time_derivatives(
 
         calc_flux(
             f, &q[vars*i], &q[vars*j], 
-            &g[2*vars*i], &g[2*vars*j], &limiters[i],
+            &gx[vars*i], &gy[vars*i], 
+            &gx[vars*j], &gy[vars*j], &limiters[i],
             n, di, dj, m.cellsAreas[i], m.edgesLengths[e]
         );
         for (uint k=0; k<vars; ++k) {
@@ -177,11 +196,12 @@ void calc_time_derivatives(
 
 void update_cells(
     std::vector<double>& q,
+    std::vector<double>& ql,
     const std::vector<double>& qt,
     const double dt
 ) {
     for (uint i=0; i<q.size(); ++i) {
-        q[i] += qt[i] * dt;
+        q[i] = ql[i] + qt[i] * dt;
     }
 }
 
@@ -336,6 +356,36 @@ void validate_dt(double& dt, mpi_wrapper& pool) {
 
 
 
+void complete_calc_qt(
+    std::vector<double>& qt,
+    std::vector<double>& q,
+    std::vector<double>& gx,
+    std::vector<double>& gy,
+    std::vector<double>& qmin,
+    std::vector<double>& qmax,
+    std::vector<double>& limiters,
+    mesh& m,
+    mpi_wrapper& pool
+) {
+    // Compute gradients
+    if (solver::do_calc_gradients) {
+        calc_gradients(gx, gy, q, m);
+        if (pool.size > 1) update_comms(gx, m);
+        if (pool.size > 1) update_comms(gy, m);
+    }
+
+    // Compute limiters
+    if (solver::do_calc_limiters) {
+        calc_limiters(limiters, qmin, qmax, q, gx, gy, m);
+        if (pool.size > 1) update_comms(limiters, m);
+    }
+
+    // Compute time derivative
+    calc_time_derivatives(qt, q, gx, gy, limiters, m);
+}
+
+
+
 void run(
     std::vector<double>& q,
     mpi_wrapper& pool,
@@ -346,11 +396,17 @@ void run(
     q.resize(vars*m.cellsAreas.size());
     generate_initial_solution(q, m);
 
+    std::vector<double> qk(q.size());
+
     std::vector<double> qt(q.size());
-    std::vector<double> g(2*q.size());
+    std::vector<double> gx(q.size());
+    std::vector<double> gy(q.size());
     std::vector<double> limiters(q.size());
     std::vector<double> qmin(q.size());
     std::vector<double> qmax(q.size());
+
+    // RK5 stage coefficients
+    std::vector<double> alpha = {0.05, 0.125, 0.25, 0.5, 1.};
 
     bool running = true;
     double dt = 0;
@@ -383,17 +439,17 @@ void run(
         calc_dt(dt, q, m);
         if (pool.size > 1) validate_dt(dt, pool);
 
-        // Compute gradients
-        //calc_gradients(g, q, m);
+        // Runge kutta iterations
 
-        // Compute limiters
-        //calc_limiters(limiters, qmin, qmax, q, g, m);
+        // Store q in qk
+        for (uint i=0; i<q.size(); ++i) qk[i] = q[i];
 
-        // Compute time derivative
-        calc_time_derivatives(qt, q, g, limiters, m);
-
-        // Euler explicit update cells
-        update_cells(q, qt, dt);
+        for (const double& a : alpha) {
+            complete_calc_qt(qt, qk, gx, gy, qmin, qmax, limiters, m, pool);
+            update_cells(qk, q, qt, dt*a);
+        }
+        // Get back qk values into q
+        for (uint i=0; i<q.size(); ++i) q[i] = qk[i];
 
         // Link with MPI
         // Compute update to send to neighboor nodes

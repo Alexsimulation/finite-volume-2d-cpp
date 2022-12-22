@@ -7,7 +7,12 @@
 // Implement a heat tranfer problem using fvhyper
 namespace fvhyper {
 
+    // Define global constants
     int vars = 1;
+    namespace solver {
+        bool do_calc_gradients = false;
+        bool do_calc_limiters = false;
+    }
 
     /* 
         Define initial solution
@@ -50,8 +55,10 @@ namespace fvhyper {
         double* f,
         const double* qi,
         const double* qj,
-        const double* gi,
-        const double* gj,
+        const double* gxi,
+        const double* gyi,
+        const double* gxj,
+        const double* gyj,
         const double* l,
         const double* n,
         const double* di,
@@ -76,7 +83,7 @@ namespace fvhyper {
         mesh& m
     ) {
         // Constant time step
-        dt = 1e-6;
+        dt = 1e-5;
     }
 
 

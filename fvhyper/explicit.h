@@ -13,6 +13,13 @@
 namespace fvhyper {
 
 
+extern int vars;
+
+namespace solver {
+    extern bool do_calc_gradients;
+    extern bool do_calc_limiters;
+}
+
 
 void limiter_func(double* l, const double* r);
 
@@ -27,8 +34,10 @@ void calc_flux(
     double* f,
     const double* vi,
     const double* vj,
-    const double* gi,
-    const double* gj,
+    const double* gxi,
+    const double* gyi,
+    const double* gxj,
+    const double* gyj,
     const double* n,
     const double* l,
     const double* di,
@@ -46,7 +55,8 @@ void calc_dt(
 
 
 void calc_gradients(
-    std::vector<double>& g,
+    std::vector<double>& gx,
+    std::vector<double>& gy,
     const std::vector<double>& q,
     const mesh& m
 );
@@ -55,7 +65,8 @@ void calc_gradients(
 void calc_limiters(
     std::vector<double>& limiters,
     const std::vector<double>& q,
-    const std::vector<double>& g,
+    const std::vector<double>& gx,
+    const std::vector<double>& gy,
     const mesh& m
 );
 
@@ -63,7 +74,8 @@ void calc_limiters(
 void calc_time_derivatives(
     std::vector<double>& qt,
     const std::vector<double>& q,
-    const std::vector<double>& g,
+    const std::vector<double>& gx,
+    const std::vector<double>& gy,
     const std::vector<double>& limiters,
     mesh& m
 );
@@ -71,6 +83,7 @@ void calc_time_derivatives(
 
 void update_cells(
     std::vector<double>& q,
+    std::vector<double>& ql,
     const std::vector<double>& qt,
     const double dt
 );
@@ -98,6 +111,18 @@ struct solverOptions {
     uint max_step = 1e8;
     uint print_interval = 1;
 };
+
+void complete_calc_qt(
+    std::vector<double>& qt,
+    std::vector<double>& q,
+    std::vector<double>& gx,
+    std::vector<double>& gy,
+    std::vector<double>& qmin,
+    std::vector<double>& qmax,
+    std::vector<double>& limiters,
+    mesh& m,
+    mpi_wrapper& pool
+);
 
 
 void run(
