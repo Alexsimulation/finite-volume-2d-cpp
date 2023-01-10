@@ -278,7 +278,10 @@ void mesh::read_file(std::string name, mpi_wrapper& pool) {
 
     std::string currentSection = "start";
 
+    uint counter = 0;
     while (std::getline(infile, line)) {
+        //std::cout << pool.rank << " got to line " << counter << std::endl;
+        counter += 1;
 
         if (line[0] == '$') {
             // This line tells us a section number
@@ -316,13 +319,14 @@ void mesh::read_file(std::string name, mpi_wrapper& pool) {
                 entityTagToPhysicalTag[l[0]] = l[8];
             } else if (nss <= entitiesNumber["surfaces"]) {
                 // Reading surfaces
+                auto l = str_to_ints(line);
             }
         } else if (currentSection == "PartitionedEntities") {
             if (ns < 2) {
             } else if (ns == 2) {
                 auto l = str_to_ints(line);
                 nGhostEntities = l[0];
-                nss = 0;
+                nss = 524288;
             } else if (ns == (3 + nGhostEntities)) {
                 auto l = str_to_ints(line);
                 entitiesNumber["points"] = l[0];
@@ -376,7 +380,9 @@ void mesh::read_file(std::string name, mpi_wrapper& pool) {
             } else if (ns > (start_offset + n_in_block)) {
                 // Read block
                 auto l = str_to_ints(line);
-                blockPhysicalTag = entityTagToPhysicalTag.at(l[1]);
+                if (l[0] == 1) {
+                    blockPhysicalTag = entityTagToPhysicalTag.at(l[1]);
+                }
                 n_in_block = l[3];
                 start_offset = ns;
                 nss = 0;

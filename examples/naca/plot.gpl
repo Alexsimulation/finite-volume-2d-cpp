@@ -1,0 +1,4 @@
+set logscale y 10
+plot for [i=3:6] 'log.txt' using 1:i w l title columnhead
+pause 1
+reread

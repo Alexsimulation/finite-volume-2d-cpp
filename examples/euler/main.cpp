@@ -13,6 +13,7 @@ namespace fvhyper {
     namespace solver {
         bool do_calc_gradients = false;
         bool do_calc_limiters = false;
+        bool global_dt = true;
     }
 
     namespace consts {
@@ -45,10 +46,8 @@ namespace fvhyper {
     }
 
     // Van albada 1 limiter function
-    void limiter_func(double* l, const double* r) {
-        for (uint i=0; i<4; ++i) {
-            l[i] = (r[i]*r[i] + r[i])/(r[i]*r[i] + 1.);
-        }
+    double limiter_func(const double& r) {
+        return (r*r + r)/(r*r + 1.0);
     }
 
     // Helper function for entropy correction
@@ -69,7 +68,8 @@ namespace fvhyper {
         const double* gyi,
         const double* gxj,
         const double* gyj,
-        const double* l,
+        const double* li,
+        const double* lj,
         const double* n,
         const double* di,
         const double* dj,
@@ -139,12 +139,12 @@ namespace fvhyper {
         Define the time step. Here, time step is constant
     */
     void calc_dt(
-        double& dt,
+        std::vector<double>& dt,
         const std::vector<double>& q,
         mesh& m
     ) {
         // Constant time step
-        dt = 2e-5;
+        for (auto& dti : dt) {dti = 2e-5;}
     }
 
 

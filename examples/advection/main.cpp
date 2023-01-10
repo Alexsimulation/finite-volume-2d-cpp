@@ -12,6 +12,7 @@ namespace fvhyper {
     namespace solver {
         bool do_calc_gradients = true;
         bool do_calc_limiters = true;
+        bool global_dt = true;
     }
 
     /*
@@ -27,7 +28,7 @@ namespace fvhyper {
         for (uint i=0; i<m.cellsAreas.size(); ++i) {
             double x = m.cellsCentersX[i] - 0.5;
             double y = m.cellsCentersY[i] - 0.5;
-            if (sqrt(x*x + y*y) < 0.5*0.5) {
+            if ((x*x + y*y) < 0.25*0.25) {
                 v[2*i] = 1.;
                 v[2*i+1] = -1.;
             } else {
@@ -38,9 +39,8 @@ namespace fvhyper {
     }
 
     // Here the limiter function is the minmod limiter
-    void limiter_func(double* l, const double* r) {
-        l[0] = std::max(0., std::min(r[0], 1.));
-        l[1] = std::max(0., std::min(r[1], 1.));
+    double limiter_func(const double& r) {
+        return std::max(0., std::min(1., r));
     }
 
     /*
@@ -65,7 +65,8 @@ namespace fvhyper {
         const double* gyi,
         const double* gxj,
         const double* gyj,
-        const double* l,
+        const double* li,
+        const double* lj,
         const double* n,
         const double* di,
         const double* dj,
@@ -76,33 +77,43 @@ namespace fvhyper {
         double qil[2];
         double qjl[2];
         for (uint i=0; i<2; ++i) {
-            qil[i] = qi[i] + (gxi[i] * di[0] + gyi[i] * di[1])*l[0];
-            qjl[i] = qj[i] + (gxj[i] * dj[0] + gyj[i] * dj[1])*l[1];
+            qil[i] = qi[i] + (gxi[i] * di[0] + gyi[i] * di[1])*li[0];
+            qjl[i] = qj[i] + (gxj[i] * dj[0] + gyj[i] * dj[1])*lj[1];
         }
 
-        // Advection, velocity beta = (u, v)
-        double beta[2];
-        beta[0] = (qil[0] + qjl[0])*0.5;
-        beta[1] = (qil[1] + qjl[1])*0.5;
+        // Flux
+        double Vi = qil[0]*n[0] + qil[1]*n[1];
+        double Vj = qjl[0]*n[0] + qjl[1]*n[1];
+
+        double fi[2];
+        fi[0] = Vi*qil[0];
+        fi[1] = Vi*qil[1];
+
+        double fj[2];
+        fj[0] = Vj*qjl[0];
+        fj[1] = Vj*qjl[1];
+
         // V = beta * n
-        double V = beta[0]*n[0] + beta[1]*n[1];
+        double V = std::max(std::abs(Vi), std::abs(Vj));
 
         // Upwind flux
-        f[0] = 0.5*V*(qil[0] + qjl[0]) - 0.5*std::abs(V)*(qjl[0] - qil[0]); 
+        f[0] = 0.5*(fi[0] + fj[0]) - 0.5*V*(qjl[0] - qil[0]); 
 
-        f[1] = 0.5*V*(qil[1] + qjl[1]) - 0.5*std::abs(V)*(qjl[1] - qil[1]);
+        f[1] = 0.5*(fi[1] + fj[1]) - 0.5*V*(qjl[1] - qil[1]);
     }
 
     /*
-        Define the time step. Here, time step is constant
+        Define the time step. Here, time step is constant over all cells
     */
     void calc_dt(
-        double& dt,
+        std::vector<double>& dt,
         const std::vector<double>& q,
         mesh& m
     ) {
         // Constant time step
-        dt = 1e-4;
+        for (uint i=0; i<dt.size(); ++i) {
+            dt[i] = 1e-4;
+        }
     }
 
 

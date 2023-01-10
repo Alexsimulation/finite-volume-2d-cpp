@@ -12,6 +12,7 @@ namespace fvhyper {
     namespace solver {
         bool do_calc_gradients = false;
         bool do_calc_limiters = false;
+        bool global_dt = true;
     }
 
     /* 
@@ -36,8 +37,8 @@ namespace fvhyper {
     }
 
     // Here the limiter function is not used, default implementation
-    void limiter_func(double* l, const double* r) {
-        l[0] = 1.;
+    double limiter_func(const double& r) {
+        return 0.;
     }
 
     /*
@@ -59,7 +60,8 @@ namespace fvhyper {
         const double* gyi,
         const double* gxj,
         const double* gyj,
-        const double* l,
+        const double* li,
+        const double* lj,
         const double* n,
         const double* di,
         const double* dj,
@@ -68,8 +70,9 @@ namespace fvhyper {
     ) {
         // Diffusion equation
         double grad[2];
-        grad[0] = (qj[0] - qi[0])*n[0]*len/area;
-        grad[1] = (qj[0] - qi[0])*n[1]*len/area;
+
+        // Gradient calculation, only use for diffusive equations
+        gradient_for_diffusion(grad, qi, qj, n, area, len);
 
         f[0] = -(grad[0]*n[0] + grad[1]*n[1]);   
     }
@@ -78,12 +81,12 @@ namespace fvhyper {
         Define the time step. Here, time step is constant
     */
     void calc_dt(
-        double& dt,
+        std::vector<double>& dt,
         const std::vector<double>& q,
         mesh& m
     ) {
         // Constant time step
-        dt = 1e-5;
+        for (double& dti : dt) dti = 1e-5;
     }
 
 

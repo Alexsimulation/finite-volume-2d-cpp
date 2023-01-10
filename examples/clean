@@ -1,12 +1,13 @@
 #!/bin/bash
 
-names='advection euler heatTransfer'
+names='advection euler heatTransfer naca'
 
 for name in $names
 do
     rm $name/*.vtu
     rm $name/*.pvtu
     rm $name/*.msh
+    rm -r $name/logs
     ls */** | grep -v -e "\." -e "\makefile" | xargs -r rm
 done
 

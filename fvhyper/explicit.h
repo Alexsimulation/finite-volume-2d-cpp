@@ -18,10 +18,19 @@ extern int vars;
 namespace solver {
     extern bool do_calc_gradients;
     extern bool do_calc_limiters;
+    extern bool global_dt;
 }
 
 
-void limiter_func(double* l, const double* r);
+double limiter_func(const double& r);
+
+
+void gradient_for_diffusion(
+    double* grad, 
+    const double* qi, const double* qj, 
+    const double* n, 
+    const double& area, const double& len
+);
 
 
 void generate_initial_solution(
@@ -39,7 +48,8 @@ void calc_flux(
     const double* gxj,
     const double* gyj,
     const double* n,
-    const double* l,
+    const double* li,
+    const double* lj,
     const double* di,
     const double* dj,
     const double area,
@@ -48,7 +58,7 @@ void calc_flux(
 
 
 void calc_dt(
-    double& dt,
+    std::vector<double>& dt,
     const std::vector<double>& q,
     mesh& m
 );
@@ -85,7 +95,13 @@ void update_cells(
     std::vector<double>& q,
     std::vector<double>& ql,
     const std::vector<double>& qt,
-    const double dt
+    const std::vector<double>& dt,
+    const double v
+);
+
+void update_bounds(
+    std::vector<double>& q,
+    mesh& m
 );
 
 
@@ -103,13 +119,17 @@ void calc_residuals(
 );
 
 
-void validate_dt(double& dt, mpi_wrapper& pool);
+void min_dt(std::vector<double>& dt, mesh& m);
+
+
+void validate_dt(std::vector<double>& dt, mpi_wrapper& pool);
 
 
 struct solverOptions {
     double max_time = 1e10;
     uint max_step = 1e8;
     uint print_interval = 1;
+    double tolerance = 1e-16;
 };
 
 void complete_calc_qt(
