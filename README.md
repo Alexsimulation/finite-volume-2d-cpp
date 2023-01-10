@@ -71,7 +71,8 @@ build:
  * [x] Explicit Euler solver
  * [x] PVTU file export
  * [x] Example 2D tests
- * [ ] Explicit Rk4 solver
+ * [x] Explicit Rk5 solver
+ * [ ] Second order limiters
  * [ ] Implicit Euler solver
  * [ ] 3D solvers
 
