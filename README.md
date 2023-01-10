@@ -81,7 +81,7 @@ Contributions are always welcome! Please create a PR to add Github Profile.
 
 ## :pencil: License
 
-This project is licensed under [MIT](https://opensource.org/licenses/MIT) license.
+This project is licensed under [GPL3](https://www.gnu.org/licenses/gpl-3.0.en.html) license.
 
 ## :man_astronaut: Show your support
 
