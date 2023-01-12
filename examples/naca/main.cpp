@@ -18,7 +18,7 @@ namespace fvhyper {
 
     namespace consts {
         double gamma = 1.4;
-        double cfl = 1.0;
+        double cfl = 1.5;
     }
 
     // Helper function for pressure calc
@@ -41,15 +41,15 @@ namespace fvhyper {
         }
     }
 
-    // Van albada 1 limiter function
-    double limiter_func(const double& r) {
+    // Michalak limiter function
+    double limiter_func(const double& y) {
         const double yt = 2.0;
-        if (r >= yt) {
+        if (y >= yt) {
             return 1.0;
         } else {
             const double a = 1.0/(yt*yt) - 2.0/(yt*yt*yt);
             const double b = -3.0/2.0*a*yt - 0.5/yt;
-            return a*r*r*r + b*r*r + r;
+            return a*y*y*y + b*y*y + y;
         }
     }
 
@@ -180,15 +180,15 @@ namespace fvhyper {
             double ci = sqrt(calc_p(qi)*consts::gamma / qi[0]);
             double cj = sqrt(calc_p(qj)*consts::gamma / qj[0]);
 
-            double max_eig_i = abs(ci) + abs(n[0]*qi[1]/qi[0] + n[1]*qi[2]/qi[0]);
-            double max_eig_j = abs(cj) + abs(n[0]*qj[1]/qj[0] + n[1]*qj[2]/qj[0]);
+            double max_eig_i = ci + abs(n[0]*qi[1]/qi[0] + n[1]*qi[2]/qi[0]);
+            double max_eig_j = cj + abs(n[0]*qj[1]/qj[0] + n[1]*qj[2]/qj[0]);
 
             double dt_i = cfl * (m.cellsAreas[i] / le) / max_eig_i;
             double dt_j = cfl * (m.cellsAreas[j] / le) / max_eig_j;
 
-            for (uint k=0; k<4; ++k) {
-                dt[4*i + k] = std::min(dt[4*i + k], dt_i);
-                dt[4*j + k] = std::min(dt[4*j + k], dt_j);
+            for (uint k=0; k<vars; ++k) {
+                dt[vars*i + k] = std::min(dt[4*i + k], dt_i);
+                dt[vars*j + k] = std::min(dt[4*j + k], dt_j);
             }
         }
     }
@@ -317,7 +317,7 @@ int main() {
 
     fvhyper::solverOptions options;
     options.max_step = 10000;
-    options.print_interval = 100;
+    options.print_interval = 10;
     options.tolerance = 1e-12;
 
     // Run solver

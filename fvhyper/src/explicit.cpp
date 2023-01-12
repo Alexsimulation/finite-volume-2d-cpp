@@ -1,10 +1,15 @@
 #include <fvhyper/explicit.h>
 #include <array>
-
+#include <chrono>
 
 
 
 namespace fvhyper {
+
+
+namespace solver {
+    double limiter_k_value = 10.0;
+}
 
 
 void gradient_for_diffusion(
@@ -38,10 +43,20 @@ void calc_gradients(
         const auto& ny = m.edgesNormalsY[e];
         const auto& le = m.edgesLengths[e];
 
+        const double dxif = m.edgesCentersX[e] - m.cellsCentersX[i];
+        const double dyif = m.edgesCentersY[e] - m.cellsCentersY[i];
+        const double dif = sqrt(dxif*dxif + dyif*dyif);
+
+        const double dxij = m.cellsCentersX[i] - m.cellsCentersX[j];
+        const double dyij = m.cellsCentersY[i] - m.cellsCentersY[j];
+        const double dij = sqrt(dxij*dxij + dyij*dyij);
+
+        const double geom_factor = dif / dij;
+
         if (i != j) {
             double f[vars];
             for (uint k=0; k<vars; ++k) {
-                f[k] = (q[vars*i+k] + q[vars*j+k]) * 0.5 * le;
+                f[k] = (q[vars*i+k]*(1.0 - geom_factor) + q[vars*j+k] * geom_factor) * le;
             }
             for (uint k=0; k<vars; ++k) {
                 gx[vars*i+k] += f[k] * nx;
@@ -114,7 +129,7 @@ void calc_limiters(
             if ((id < m.nRealCells)&(!m.cellsIsGhost[id])) {
                 const double dx = m.edgesCentersX[e] - m.cellsCentersX[id];
                 const double dy = m.edgesCentersY[e] - m.cellsCentersY[id];
-                const double area = m.cellsAreas[id];
+                const double sqrt_area = sqrt(m.cellsAreas[id]);
 
                 for (uint k=0; k<vars; ++k) {
                     double dqg = gx[vars*id+k]*dx + gy[vars*id+k]*dy;
@@ -122,30 +137,32 @@ void calc_limiters(
                     double delta_max = qmax[vars*id+k] - q[vars*id+k];
                     double delta_min = qmin[vars*id+k] - q[vars*id+k];
 
-                    const double Ka = 1.0 * sqrt(area);
+                    const double Ka = solver::limiter_k_value * sqrt_area;
                     const double K3a = Ka * Ka * Ka;
-                    double dMaxMin2 = (delta_max - delta_min)*(delta_max - delta_min); 
+                    const double dMaxMin2 = (delta_max - delta_min)*(delta_max - delta_min); 
 
                     double sig;
                     if (dMaxMin2 <= K3a) {
                         sig = 1.;
-                    } else if (dMaxMin2 < 2*K3a) {
+                    } else if (dMaxMin2 <= 2*K3a) {
                         double y = (dMaxMin2/K3a - 1.0);
                         sig = 2.0*y*y*y - 3.0*y*y + 1.0;
                     } else {
                         sig = 0.;
                     }
                     
-                    double lim;
-                    if (dqg > tol) {
-                        lim = limiter_func(delta_max/dqg);
-                    } else if (dqg < -tol) {
-                        lim = limiter_func(delta_min/dqg);
-                    } else {
-                        lim = 1.0;
+                    double lim = 1.0;
+                    if (sig < 1.0) {
+                        if (dqg > tol) {
+                            lim = limiter_func(delta_max/dqg);
+                        } else if (dqg < -tol) {
+                            lim = limiter_func(delta_min/dqg);
+                        } else {
+                            lim = 1.0;
+                        }
                     }
 
-                    lim = sig + (1 - sig)*lim;
+                    lim = sig + (1.0 - sig)*lim;
 
                     limiters[vars*id+k] = std::min(limiters[vars*id+k], lim);
                 }
@@ -304,6 +321,8 @@ void update_comms(
             iter += 1;
         }
     }
+
+    MPI_Barrier( MPI_COMM_WORLD );
 
     // Free requests
     for (uint i=0; i<reqs.size(); ++i) {
@@ -510,7 +529,13 @@ void run(
     std::vector<double> dt(q.size());
 
     // RK5 stage coefficients
-    std::vector<double> alpha = {0.05, 0.125, 0.25, 0.5, 1.};
+    std::vector<double> alpha = {
+        0.0695, 
+        0.1602, 
+        0.2898, 
+        0.506, 
+        1.
+    };
 
     bool running = true;
 
@@ -522,7 +547,7 @@ void run(
     for (uint i=0; i<vars; ++i) {R[i] = 1.0;}
 
     if (pool.rank == 0) {
-        std::cout << "Step, Time, ";
+        std::cout << "Step, Time, RealTime, ";
         for (uint i=0; i<vars; ++i) {
             std::cout << "R(q[" << i << "])";
             if (i < vars-1) {std::cout << ", ";}
@@ -530,7 +555,7 @@ void run(
         std::cout << std::endl;
     }
 
-
+    std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
     while (running) {
 
         // Convergence check
@@ -573,13 +598,28 @@ void run(
         if (step == 0) {
             calc_residuals(R0, qt, m, pool);
             for (uint i=0; i<vars; ++i) {R[i] = R0[i];}
+
+            std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+            int microseconds = std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count();
+            double seconds = ((double) microseconds) / 1e6;
+
+            std::cout << step << ", " << time << ", " << seconds << ", ";
+            for (uint i=0; i<vars; ++i) {
+                std::cout << "1.0";
+                if (i < vars-1) {std::cout << ", ";}
+            }
+            std::cout << std::endl;
         } else if ((step % opt.print_interval == 0)|(opt.tolerance > 1.01e-16)) {
             
             calc_residuals(R, qt, m, pool);
             for (uint i=0; i<vars; ++i) {R[i] = R[i]/R0[i];}
 
             if ((step % opt.print_interval == 0) & (pool.rank == 0)) {
-                std::cout << step << ", " << time << ", ";
+                std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+                int microseconds = std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count();
+                double seconds = ((double) microseconds) / 1e6;
+
+                std::cout << step << ", " << time << ", " << seconds << ", ";
                 for (uint i=0; i<vars; ++i) {
                     std::cout << R[i];
                     if (i < vars-1) {std::cout << ", ";}

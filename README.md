@@ -72,7 +72,7 @@ build:
  * [x] PVTU file export
  * [x] Example 2D tests
  * [x] Explicit Rk5 solver
- * [ ] Second order limiters
+ * [x] Second order limiters
  * [ ] Implicit Euler solver
  * [ ] 3D solvers
 

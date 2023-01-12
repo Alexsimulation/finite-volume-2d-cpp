@@ -19,6 +19,7 @@ namespace solver {
     extern bool do_calc_gradients;
     extern bool do_calc_limiters;
     extern bool global_dt;
+    extern double limiter_k_value;
 }
 
 
