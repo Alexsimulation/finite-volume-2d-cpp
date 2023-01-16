@@ -22,7 +22,7 @@ void writeVtk(
         // Write vtk header file
         std::string core = "";
         core += "<VTKFile type=\"PUnstructuredGrid\" version=\"0.1\" byte_order=\"BigEndian\">\n";
-        core += "<PUnstructuredGrid GhostLevel=\"2\">\n";
+        core += "<PUnstructuredGrid GhostLevel=\"1\">\n";
         core += "  <PPoints>\n";
         core += "    <PDataArray type=\"Float32\" NumberOfComponents=\"3\"/>\n";
         core += "  </PPoints>\n";
@@ -35,6 +35,14 @@ void writeVtk(
         core += "    <PDataArray type=\"Float32\" Name=\"rank\"/>\n";
         for (auto varname : varNames) {
             core += "    <PDataArray type=\"Float32\" Name=\"" + varname + "\"/>\n";
+        }
+        for (auto& keyval : post::extra_scalars) {
+            core += "    <PDataArray type=\"Float32\" Name=\"" + keyval.first + "\"/>\n";
+        }
+        if (post::extra_vectors.size() > 0) {
+            for (auto& keyval : post::extra_vectors) {
+                core += "    <PDataArray type=\"Float32\" Name=\"" + keyval.first + "\" NumberOfComponents=\"3\"/>\n";
+            }
         }
         core += "  </PCellData>\n";
         for (uint i=0; i<world_size; ++i) {
@@ -112,7 +120,7 @@ void writeVtk(
     s += "        </DataArray>\n";
     s += "      </Cells>\n";
 
-    // Save data
+    // Save scalar data
     s += "      <CellData Scalars=\"scalars\">\n";
 
     // Save cell rank
@@ -130,8 +138,32 @@ void writeVtk(
         }
         s += "        </DataArray>\n";
     }
+    for (auto& keyval : post::extra_scalars) {
+        s += "        <DataArray type=\"Float32\" Name=\"" + keyval.first + "\" Format=\"ascii\">\n";
+        for (int j=0; j<m.nRealCells; ++j) {
+            double scal_i[1];
+            keyval.second(scal_i, &q[varNames.size()*j]);
+            s += "          " + std::to_string(scal_i[0]) + "\n";
+        }
+        s += "        </DataArray>\n";
+    }
+
+    // Save vectors
+    if (post::extra_vectors.size() > 0) {
+        for (auto& keyval : post::extra_vectors) {
+            s += "        <DataArray type=\"Float32\" Name=\"" + keyval.first + "\" NumberOfComponents=\"3\" Format=\"ascii\">\n";
+            for (int j=0; j<m.nRealCells; ++j) {
+                double vec_i[2];
+                keyval.second(vec_i, &q[varNames.size()*j]);
+                s += "          " + std::to_string(vec_i[0]) + " ";
+                s += std::to_string(vec_i[1]) + " 0.0\n";
+            }
+            s += "        </DataArray>\n";
+        }
+    }
 
     s += "      </CellData>\n";
+
     s += "    </Piece>\n";
     s += "  </UnstructuredGrid>\n";
     s += "</VTKFile>";

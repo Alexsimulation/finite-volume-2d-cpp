@@ -8,18 +8,61 @@ namespace fvhyper {
 
 
 namespace solver {
-    double limiter_k_value = 10.0;
+    const double limiter_k_value = 7.5;
 }
 
 
-void gradient_for_diffusion(
-    double* grad, 
-    const double* qi, const double* qj, 
-    const double* n, 
-    const double& area, const double& len
+
+void smoothResiduals(
+    std::vector<double>& r,
+    mesh& m
 ) {
-    grad[0] = (qj[0] - qi[0])*n[0]*len/area;
-    grad[1] = (qj[0] - qi[0])*n[1]*len/area;
+    /*
+        Smooth the residuals in r implicitly using jacobi iteration
+    */
+}
+
+
+
+void gradient_for_diffusion(
+    double* gradx, double* grady, 
+    const double* gxi, const double* gyi,
+    const double* gxj, const double* gyj,
+    const double* qi, const double* qj, 
+    const double* ci, const double* cj
+) {
+    // Evaluate gradient for diffusive fluxes
+
+    // Distance from i to j
+    double tij[2];
+    tij[0] = ci[0] - cj[0];
+    tij[1] = ci[1] - cj[1];
+
+    const double lij = sqrt(tij[0]*tij[0] + tij[1]*tij[1]);
+
+    tij[0] = tij[0] / lij;
+    tij[1] = tij[1] / lij;
+
+    // Directional derivative
+    double grad_dir[vars];
+    for (uint i=0; i<vars; ++i) {
+        grad_dir[i] = (qi[i] - qj[i])/lij;
+    }
+
+    // Arithmetic average gradient
+    double gradx_bar[vars];
+    double grady_bar[vars];
+    for (uint i=0; i<vars; ++i) {
+        gradx_bar[i] = (gxi[i] + gxj[i])*0.5;
+        grady_bar[i] = (gyi[i] + gyj[i])*0.5;
+    }
+
+    // Corrected gradient
+    for (uint i=0; i<vars; ++i) {
+        const double grad_dot = gradx_bar[i]*tij[0] + grady_bar[i]*tij[1];
+        gradx[i] = gradx_bar[i] - (grad_dot - grad_dir[i])*tij[0];
+        grady[i] = grady_bar[i] - (grad_dot - grad_dir[i])*tij[1];
+    }
 }
 
 
@@ -186,10 +229,11 @@ void calc_time_derivatives(
     }
     // Compute time derivatives qt of q
     for (uint e=0; e<m.edgesNodes.cols(); ++e) {
-        double f[vars];
         double n[2];
         double di[2];
         double dj[2];
+        double ci[2];
+        double cj[2];
 
         const auto& i = m.edgesCells(e, 0);
         const auto& j = m.edgesCells(e, 1);
@@ -201,19 +245,62 @@ void calc_time_derivatives(
         const double cx = m.edgesCentersX[e];
         const double cy = m.edgesCentersY[e];
 
-        di[0] = cx - m.cellsCentersX[i];
-        di[1] = cy - m.cellsCentersY[i];
+        ci[0] = m.cellsCentersX[i];
+        ci[1] = m.cellsCentersY[i];
 
-        dj[0] = cx - m.cellsCentersX[j];
-        dj[1] = cy - m.cellsCentersY[j];
+        cj[0] = m.cellsCentersX[j];
+        cj[1] = m.cellsCentersY[j];
 
+        di[0] = cx - ci[0];
+        di[1] = cy - ci[1];
+
+        dj[0] = cx - cj[0];
+        dj[1] = cy - cj[1];
+
+        // Compute edge center values
+        double qi[vars];
+        double qj[vars];
+
+        if (solver::linear_interpolate) {
+            for (uint k=0; k<vars; ++k) {
+                const uint ki = vars*i+k;
+                const uint kj = vars*j+k;
+                qi[k] = q[ki] + (gx[ki]*di[0] + gy[ki]*di[1])*limiters[ki];
+                qj[k] = q[kj] + (gx[kj]*dj[0] + gy[kj]*dj[1])*limiters[kj];
+            }
+        } else {
+            for (uint k=0; k<vars; ++k) {
+                qi[k] = q[vars*i+k];
+                qj[k] = q[vars*j+k];
+            }
+        }
+
+        // Compute viscous fluxes
+        double gxv[vars];
+        double gyv[vars];
+
+        if (solver::diffusive_gradients) {
+            gradient_for_diffusion(
+                gxv, gyv,
+                &gx[vars*i], &gy[vars*i],
+                &gx[vars*j], &gy[vars*j],
+                &q[vars*i], &q[vars*j],
+                ci, cj
+            );
+        } else {
+            for (uint k=0; k<vars; ++k) {
+                gxv[k] = 0.;
+                gyv[k] = 0.;
+            }
+        }
+
+        // Compute fluxes
+        double f[vars];
         calc_flux(
-            f, &q[vars*i], &q[vars*j], 
-            &gx[vars*i], &gy[vars*i], 
-            &gx[vars*j], &gy[vars*j], 
-            &limiters[vars*i], &limiters[vars*j],
-            n, di, dj, m.cellsAreas[i], m.edgesLengths[e]
+            f, qi, qj, gxv, gyv, n
         );
+
+        // Update qt
         for (uint k=0; k<vars; ++k) {
             qt[vars*i+k] -= f[k] * le;
             qt[vars*j+k] += f[k] * le;
@@ -254,17 +341,38 @@ void update_cells(
 
 void update_bounds(
     std::vector<double>& q,
+    std::vector<double>& gx,
+    std::vector<double>& gy,
+    std::vector<double>& limiters,
     mesh& m
 ) {
     // Update the ghost cells with boundary conditions
-    for (uint i=0; i<m.boundaryEdges.size(); ++i) {
+    for (uint b=0; b<m.boundaryEdges.size(); ++b) {
+        const uint e = m.boundaryEdges[b];
         double n[2];
-        uint e = m.boundaryEdges[i];
         n[0] = m.edgesNormalsX[e];
         n[1] = m.edgesNormalsY[e];
-        m.boundaryFuncs[i](
-            &q[vars*m.edgesCells(e, 1)],
-            &q[vars*m.edgesCells(e, 0)],
+        const uint id_internal = m.edgesCells(e, 0);
+        const uint id_bound = m.edgesCells(e, 1);
+
+        double q_int[vars];
+        if (solver::linear_interpolate) {
+            double di[2];
+            di[0] = m.edgesCentersX[e] - m.cellsCentersX[id_internal];
+            di[1] = m.edgesCentersY[e] - m.cellsCentersY[id_internal];
+            for (uint i=0; i<vars; ++i) {
+                const uint k = vars*id_internal+i;
+                q_int[i] = q[k] + (gx[k]*di[0] + gy[k]*di[1])*limiters[k];
+            }
+        } else {
+            for (uint i=0; i<vars; ++i) {
+                q_int[i] = q[vars*id_internal+i];
+            }
+        }
+
+        m.boundaryFuncs[b](
+            &q[vars*id_bound],
+            q_int,
             n
         );
     }
@@ -555,6 +663,9 @@ void run(
         std::cout << std::endl;
     }
 
+    // Init the ghost cells with boundary conditions
+    update_bounds(q, gx, gy, limiters, m);
+
     std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
     while (running) {
 
@@ -568,9 +679,6 @@ void run(
             running = false;
             break;
         }
-
-        // Update the ghost cells with boundary conditions
-        update_bounds(q, m);
 
         // Compute time step and update comms with dt
         calc_dt(dt, q, m);
@@ -588,8 +696,8 @@ void run(
         for (const double& a : alpha) {
             complete_calc_qt(qt, qk, gx, gy, qmin, qmax, limiters, m, pool);
             update_cells(qk, q, qt, dt, a);
+            update_bounds(qk, gx, gy, limiters, m);
             if (pool.size > 1) update_comms(qk, m);
-            //update_bounds(qk, m);
         }
         // Get back qk values into q
         for (uint i=0; i<q.size(); ++i) q[i] = qk[i];
@@ -599,16 +707,18 @@ void run(
             calc_residuals(R0, qt, m, pool);
             for (uint i=0; i<vars; ++i) {R[i] = R0[i];}
 
-            std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-            int microseconds = std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count();
-            double seconds = ((double) microseconds) / 1e6;
+            if (pool.rank == 0) {
+                std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+                int microseconds = std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count();
+                double seconds = ((double) microseconds) / 1e6;
 
-            std::cout << step << ", " << time << ", " << seconds << ", ";
-            for (uint i=0; i<vars; ++i) {
-                std::cout << "1.0";
-                if (i < vars-1) {std::cout << ", ";}
+                std::cout << step << ", " << time << ", " << seconds << ", ";
+                for (uint i=0; i<vars; ++i) {
+                    std::cout << "1.0";
+                    if (i < vars-1) {std::cout << ", ";}
+                }
+                std::cout << std::endl;
             }
-            std::cout << std::endl;
         } else if ((step % opt.print_interval == 0)|(opt.tolerance > 1.01e-16)) {
             
             calc_residuals(R, qt, m, pool);

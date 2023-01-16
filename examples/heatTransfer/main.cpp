@@ -8,11 +8,13 @@
 namespace fvhyper {
 
     // Define global constants
-    int vars = 1;
+    const int vars = 1;
     namespace solver {
-        bool do_calc_gradients = false;
-        bool do_calc_limiters = false;
-        bool global_dt = true;
+        const bool do_calc_gradients = true;
+        const bool do_calc_limiters = false;
+        const bool linear_interpolate = false;
+        const bool diffusive_gradients = true;
+        const bool global_dt = true;
     }
 
     /* 
@@ -22,16 +24,16 @@ namespace fvhyper {
             u = 0   elsewhere
     */
     void generate_initial_solution(
-        std::vector<double>& v,
+        std::vector<double>& q,
         const mesh& m
     ) {
         for (uint i=0; i<m.cellsAreas.size(); ++i) {
             double x = m.cellsCentersX[i] - 0.5;
             double y = m.cellsCentersY[i] - 0.5;
             if (sqrt(x*x + y*y) < 0.4*0.4) {
-                v[1*i] = 1.;
+                q[1*i] = 1.;
             } else {
-                v[1*i] = 0.;
+                q[1*i] = 0.;
             }
         }
     }
@@ -56,25 +58,12 @@ namespace fvhyper {
         double* f,
         const double* qi,
         const double* qj,
-        const double* gxi,
-        const double* gyi,
-        const double* gxj,
-        const double* gyj,
-        const double* li,
-        const double* lj,
-        const double* n,
-        const double* di,
-        const double* dj,
-        const double area,
-        const double len
+        const double* gx,
+        const double* gy,
+        const double* n
     ) {
         // Diffusion equation
-        double grad[2];
-
-        // Gradient calculation, only use for diffusive equations
-        gradient_for_diffusion(grad, qi, qj, n, area, len);
-
-        f[0] = -(grad[0]*n[0] + grad[1]*n[1]);   
+        f[0] = -(gx[0]*n[0] + gy[0]*n[1]);   
     }
 
     /*
@@ -106,6 +95,16 @@ namespace fvhyper {
     }
 
 
+
+    namespace post {
+        std::map<std::string, 
+            void (*)(double*, double*)> extra_scalars = {};
+        
+        std::map<std::string, 
+            void (*)(double*, double*)> extra_vectors = {};
+    }
+
+
 }
 
 
@@ -131,8 +130,8 @@ int main() {
     m.read_file(name, pool);
 
     fvhyper::solverOptions options;
-    options.max_step = 1000;
-    options.max_time = 0.01;
+    options.max_step = 5000;
+    options.max_time = 0.1;
     options.print_interval = 100;
 
     // Run solver

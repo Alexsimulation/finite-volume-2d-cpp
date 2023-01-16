@@ -9,11 +9,13 @@ namespace fvhyper {
 
 
     // Define global constants
-    int vars = 4;
+    const int vars = 4;
     namespace solver {
-        bool do_calc_gradients = false;
-        bool do_calc_limiters = false;
-        bool global_dt = true;
+        const bool do_calc_gradients = false;
+        const bool do_calc_limiters = false;
+        const bool linear_interpolate = false;
+        const bool diffusive_gradients = false;
+        const bool global_dt = true;
     }
 
     namespace consts {
@@ -45,9 +47,9 @@ namespace fvhyper {
         }
     }
 
-    // Van albada 1 limiter function
+    // First order, no limiters
     double limiter_func(const double& r) {
-        return (r*r + r)/(r*r + 1.0);
+        return 0.;
     }
 
     // Helper function for entropy correction
@@ -64,18 +66,11 @@ namespace fvhyper {
         double* f,
         const double* qi,
         const double* qj,
-        const double* gxi,
-        const double* gyi,
-        const double* gxj,
-        const double* gyj,
-        const double* li,
-        const double* lj,
-        const double* n,
-        const double* di,
-        const double* dj,
-        const double area,
-        const double len
+        const double* gx,
+        const double* gy,
+        const double* n
     ) {
+
         // Central flux
         double pi, pj, Vi, Vj;
         pi = (consts::gamma - 1)*(qi[3] - 0.5/qi[0]*(qi[1]*qi[1] + qi[2]*qi[2]));
@@ -147,7 +142,9 @@ namespace fvhyper {
         for (auto& dti : dt) {dti = 2e-5;}
     }
 
-
+    /*
+        Define the boundary conditions
+    */
     namespace boundaries {
 
         /*
@@ -161,8 +158,35 @@ namespace fvhyper {
             b[3] = q[3];
         }
         std::map<std::string, void (*)(double*, double*, double*)> 
-        bounds = {
-            {"wall", zero_flux}
+            bounds = {
+                {"wall", zero_flux}
+            };
+    }
+
+
+    /*
+        Define extra output variables
+    */
+    namespace post {
+        void calc_output_u(double* u, double* q) {
+            // Compute vector u
+            u[0] = q[1] / q[0];
+            u[1] = q[2] / q[0];
+        }
+
+        void calc_output_p(double* p, double* q) {
+            // Compute pressure p
+            p[0] = (consts::gamma - 1.)*(q[3] - 0.5/q[0]*(q[1]*q[1] + q[2]*q[2]));
+        }
+
+        std::map<std::string, void (*)(double*, double*)> 
+        extra_scalars = {
+            {"p", calc_output_p}
+        };
+        
+        std::map<std::string, void (*)(double*, double*)> 
+        extra_vectors = {
+            {"U", calc_output_u}
         };
     }
 

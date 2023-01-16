@@ -112,27 +112,27 @@ bool mesh::find_if_edge_in_mesh(const uint n0, const uint n1) {
 
 
 
-void mesh::add_last_cell_edges(uint size) {
+void mesh::add_cell_edges(uint cell_id) {
+    uint size = cellsIsTriangle[cell_id] ? 3 : 4;
 
-    uint nfaces = cellsAreas.size()-1;
     for (uint i=0; i<size; ++i) {
         uint j =  (i<(size-1)) ? (i+1) : 0;
 
-        if (!find_if_edge_in_mesh(cellsNodes(nfaces, i), cellsNodes(nfaces, j))) {
+        if (!find_if_edge_in_mesh(cellsNodes(cell_id, i), cellsNodes(cell_id, j))) {
             edgesNormalsX.push_back(0.);
             edgesNormalsY.push_back(0.);
             edgesCentersX.push_back(0.);
             edgesCentersY.push_back(0.);
 
-            std::vector<uint> efi = {nfaces, 0};
+            std::vector<uint> efi = {cell_id, 0};
             edgesCells.push_back(efi);
 
-            std::vector<uint> eni = {cellsNodes(nfaces, i), cellsNodes(nfaces, j)};
+            std::vector<uint> eni = {cellsNodes(cell_id, i), cellsNodes(cell_id, j)};
             edgesNodes.push_back(eni);
             edgesLengths.push_back(0.);
 
-            const uint nmin = std::min(cellsNodes(nfaces, i), cellsNodes(nfaces, j));
-            const uint nmax = std::max(cellsNodes(nfaces, i), cellsNodes(nfaces, j));
+            const uint nmin = std::min(cellsNodes(cell_id, i), cellsNodes(cell_id, j));
+            const uint nmax = std::max(cellsNodes(cell_id, i), cellsNodes(cell_id, j));
             edgesRef.insert({ std::make_tuple(nmin, nmax), edgesLengths.size()-1 });
         }
     }
@@ -238,7 +238,7 @@ void mesh::compute_mesh() {
             );
         }
 
-        if (cellsAreas[i] < 1e-10) {
+        if (cellsAreas[i] < 1e-15) {
             std::cout << "Null cell area for node " << i << " ";
         }
     }
@@ -275,6 +275,7 @@ void mesh::read_file(std::string name, mpi_wrapper& pool) {
 
     uint blockPhysicalTag;
     uint nGhostEntities;
+    std::vector<uint> unique_owners;
 
     std::string currentSection = "start";
 
@@ -418,12 +419,12 @@ void mesh::read_file(std::string name, mpi_wrapper& pool) {
                     }
 
                     cellsNodes.push_back(l);
+
                     cellsAreas.push_back(0.);
                     cellsCentersX.push_back(0.);
                     cellsCentersY.push_back(0.);
                     cellsIsGhost.push_back(false);
-                    
-                    add_last_cell_edges(l_size);
+                    add_cell_edges(cellsAreas.size() - 1);
                 }
             }
         } else if (currentSection == "GhostElements") {
@@ -442,6 +443,9 @@ void mesh::read_file(std::string name, mpi_wrapper& pool) {
                 ghostCellsCurrentIndices.push_back(originalCellsRefInv.at(l[0] - 1));
                 ghostCellsOwners.push_back(l[1] - 1);
                 cellsIsGhost[originalCellsRefInv.at(l[0] - 1)] = true;
+                if (std::find(unique_owners.begin(), unique_owners.end(), l[1] - 1) == unique_owners.end()) {
+                    unique_owners.push_back(l[1] - 1);
+                }
             }
         }
 
@@ -449,6 +453,9 @@ void mesh::read_file(std::string name, mpi_wrapper& pool) {
         ns += 1;
         nss += 1;
     }
+
+    // Sort unique owners from least to max
+    std::sort(unique_owners.begin(), unique_owners.end());
 
 
     // Fix edges part of ghost cells
@@ -468,6 +475,43 @@ void mesh::read_file(std::string name, mpi_wrapper& pool) {
         }
     }
 
+    nRealCells = cellsAreas.size();
+    // Reorder cells to have ghost cells at the end
+    /*
+    nRealCells = cellsAreas.size() - ghostCellsCurrentIndices.size();
+    nNonBoundCells = cellsAreas.size();
+    for (auto& id : unique_owners) {
+        // Loop over unique owners ids
+        for (uint i=0; i<ghostCellsCurrentIndices.size(); ++i) {
+            auto& ghost_i = ghostCellsCurrentIndices[i];
+            // Loop over ghost cells
+            // Check if ghost cell is still in the real cells
+            if (ghost_i < nRealCells) {
+                // Check if the ghost cell owner is the current owner id
+                if (ghostCellsOwners[i] == id) {
+                    // Move this cell to the end of the cells vector
+                    cellsNodes.move_to_end(ghost_i);
+                    std::rotate(cellsIsTriangle.begin()+ghost_i, cellsIsTriangle.begin()+ghost_i+1, cellsIsTriangle.end());
+                    // Reduce by 1 all ghost cells indices higher than i
+                    for (auto& ghost_j : ghostCellsCurrentIndices) {
+                        if (ghost_j > ghost_i) ghost_j -= 1;
+                    }
+                    // Change ghost cell current index to end of cells
+                    ghost_i = nNonBoundCells - 1;
+                }
+            }
+        }
+    }
+
+    // Add all the cells edges, areas, etc. (all cell info)
+    for (uint i=0; i<cellsNodes.cols(); ++i) {
+        cellsAreas.push_back(0.);
+        cellsCentersX.push_back(0.);
+        cellsCentersY.push_back(0.);
+        cellsIsGhost.push_back(false);
+        add_cell_edges(i);
+    }
+    */
 
     // Convert nodes and faces info
     convert_node_face_info();
@@ -480,7 +524,6 @@ void mesh::read_file(std::string name, mpi_wrapper& pool) {
 
 
     // Add boundary cells
-    nRealCells = cellsAreas.size();
     for (uint i=0; i<boundaryEdges0.size(); ++i) {
 
         // Find edge index on boundary
@@ -499,7 +542,9 @@ void mesh::read_file(std::string name, mpi_wrapper& pool) {
 
         // Compute virtual cell properties
         double area = cellsAreas[cell];
-        double dist  = area / edgesLengths[e];
+        double dx = edgesCentersX[e] - cellsCentersX[cell];
+        double dy = edgesCentersY[e] - cellsCentersY[cell];
+        double dist = sqrt(dx*dx + dy*dy);
         double cx = edgesCentersX[e] + dist*edgesNormalsX[e];
         double cy = edgesCentersY[e] + dist*edgesNormalsY[e];
         std::vector<uint> thisCellNodes = {nmin, nmax, 0, 0};

@@ -9,16 +9,18 @@ namespace fvhyper {
 
 
     // Define global constants
-    int vars = 4;
+    const int vars = 4;
     namespace solver {
-        bool do_calc_gradients = true;
-        bool do_calc_limiters = true;
-        bool global_dt = false;
+        const bool do_calc_gradients = true;
+        const bool do_calc_limiters = true;
+        const bool linear_interpolate = true;
+        const bool diffusive_gradients = false;
+        const bool global_dt = false;
     }
 
     namespace consts {
         double gamma = 1.4;
-        double cfl = 1.5;
+        double cfl = 1.25;
     }
 
     // Helper function for pressure calc
@@ -65,29 +67,12 @@ namespace fvhyper {
     */
     void calc_flux(
         double* f,
-        const double* qi_,
-        const double* qj_,
-        const double* gxi,
-        const double* gyi,
-        const double* gxj,
-        const double* gyj,
-        const double* li,
-        const double* lj,
-        const double* n,
-        const double* di,
-        const double* dj,
-        const double area,
-        const double len
+        const double* qi,
+        const double* qj,
+        const double* gx,
+        const double* gy,
+        const double* n
     ) {
-
-        // Linear interpolation
-        double qi[4];
-        double qj[4];
-        for (uint i=0; i<4; ++i) {
-            qi[i] = qi_[i] + (gxi[i]*di[0] + gyi[i]*di[1])*li[i];
-            qj[i] = qj_[i] + (gxj[i]*dj[0] + gyj[i]*dj[1])*lj[i];
-        }
-
 
         // Central flux
         double pi, pj, Vi, Vj;
@@ -291,6 +276,35 @@ namespace fvhyper {
     }
 
 
+    /*
+        Define extra output variables
+    */
+    namespace post {
+        void calc_output_u(double* u, double* q) {
+            // Compute vector u
+            u[0] = q[1] / q[0];
+            u[1] = q[2] / q[0];
+        }
+
+        void calc_output_p(double* p, double* q) {
+            // Compute pressure p
+            p[0] = calc_p(q);
+        }
+
+        std::map<std::string, void (*)(double*, double*)> 
+            extra_scalars = {
+                {"p", calc_output_p}
+            };
+        
+        std::map<std::string, void (*)(double*, double*)> 
+            extra_vectors = {
+                {"U", calc_output_u}
+            };
+
+        
+    }
+
+
 }
 
 
@@ -316,7 +330,7 @@ int main() {
     m.read_file(name, pool);
 
     fvhyper::solverOptions options;
-    options.max_step = 10000;
+    options.max_step = 15000;
     options.print_interval = 10;
     options.tolerance = 1e-12;
 

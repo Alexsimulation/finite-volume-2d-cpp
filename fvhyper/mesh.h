@@ -7,6 +7,7 @@
 #include <unordered_map>
 #include <math.h>
 #include <iostream>
+#include <algorithm>
 #include <fvhyper/parallel.h>
 
 
@@ -14,7 +15,7 @@ namespace fvhyper {
 
 
 
-extern int vars;
+extern const int vars;
 
 
 namespace boundaries {
@@ -49,6 +50,7 @@ public:
     uint cols() const;
     uint rows() const;
     void dump();
+    void move_to_end(const uint& i);
 };
 
 template<uint N>
@@ -84,6 +86,12 @@ void meshArray<N>::dump() {
         }
         std::cout << "\n";
     }
+}
+
+template<uint N>
+void meshArray<N>::move_to_end(const uint& i) {
+    // Move row i to the end
+    std::rotate(nodes.begin() + N*i, nodes.begin() + N*i + N, nodes.end());
 }
 
 
@@ -128,6 +136,7 @@ public:
     std::vector<mpi_comm_cells> comms;
 
     uint nRealCells;    // Number of real cells (start of ghost cells)
+    uint nNonBoundCells;    // Number of non-boundary cells (start of boundary cells)
 
     void read_file(std::string filename, mpi_wrapper& pool);
 
@@ -139,7 +148,7 @@ public:
 
     void convert_node_face_info();
     void compute_mesh();
-    void add_last_cell_edges(uint size);
+    void add_cell_edges(uint cell_id);
 
     void send_mesh_info();
 };

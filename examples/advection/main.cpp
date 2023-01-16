@@ -8,11 +8,13 @@
 namespace fvhyper {
 
     // Define global constants
-    int vars = 2;
+    const int vars = 2;
     namespace solver {
-        bool do_calc_gradients = true;
-        bool do_calc_limiters = true;
-        bool global_dt = true;
+        const bool do_calc_gradients = true;
+        const bool do_calc_limiters = true;
+        const bool linear_interpolate = true;
+        const bool diffusive_gradients = true;
+        const bool global_dt = true;
     }
 
     /*
@@ -61,45 +63,28 @@ namespace fvhyper {
         double* f,
         const double* qi,
         const double* qj,
-        const double* gxi,
-        const double* gyi,
-        const double* gxj,
-        const double* gyj,
-        const double* li,
-        const double* lj,
-        const double* n,
-        const double* di,
-        const double* dj,
-        const double area,
-        const double len
+        const double* gx,
+        const double* gy,
+        const double* n
     ) {
-        // Use linear interpolation
-        double qil[2];
-        double qjl[2];
-        for (uint i=0; i<2; ++i) {
-            qil[i] = qi[i] + (gxi[i] * di[0] + gyi[i] * di[1])*li[0];
-            qjl[i] = qj[i] + (gxj[i] * dj[0] + gyj[i] * dj[1])*lj[1];
-        }
-
         // Flux
-        double Vi = qil[0]*n[0] + qil[1]*n[1];
-        double Vj = qjl[0]*n[0] + qjl[1]*n[1];
+        double Vi = qi[0]*n[0] + qi[1]*n[1];
+        double Vj = qj[0]*n[0] + qj[1]*n[1];
 
         double fi[2];
-        fi[0] = Vi*qil[0];
-        fi[1] = Vi*qil[1];
+        fi[0] = Vi*qi[0];
+        fi[1] = Vi*qi[1];
 
         double fj[2];
-        fj[0] = Vj*qjl[0];
-        fj[1] = Vj*qjl[1];
+        fj[0] = Vj*qj[0];
+        fj[1] = Vj*qj[1];
 
         // V = beta * n
         double V = std::max(std::abs(Vi), std::abs(Vj));
 
         // Upwind flux
-        f[0] = 0.5*(fi[0] + fj[0]) - 0.5*V*(qjl[0] - qil[0]); 
-
-        f[1] = 0.5*(fi[1] + fj[1]) - 0.5*V*(qjl[1] - qil[1]);
+        f[0] = 0.5*(fi[0] + fj[0]) - 0.5*V*(qj[0] - qi[0]); 
+        f[1] = 0.5*(fi[1] + fj[1]) - 0.5*V*(qj[1] - qi[1]);
     }
 
     /*
@@ -130,6 +115,26 @@ namespace fvhyper {
         std::map<std::string, void (*)(double*, double*, double*)> 
         bounds = {
             {"wall", zero_flux}
+        };
+    }
+
+
+    /*
+        Define extra output variables
+    */
+    namespace post {
+        void calc_output_u(double* u, double* q) {
+            // Compute vector u
+            u[0] = q[0];
+            u[1] = q[1];
+        }
+
+        std::map<std::string, void (*)(double*, double*)> 
+        extra_scalars = {};
+        
+        std::map<std::string, void (*)(double*, double*)> 
+        extra_vectors = {
+            {"U", calc_output_u}
         };
     }
 

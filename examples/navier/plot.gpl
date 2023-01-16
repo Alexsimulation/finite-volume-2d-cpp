@@ -1,0 +1,7 @@
+set logscale y 10
+set xlabel 'Iterations'
+set ylabel 'Residuals'
+set format y "%.1e"
+plot for [i=4:7] 'log.txt' using 1:i w l title columnhead
+pause 1
+reread

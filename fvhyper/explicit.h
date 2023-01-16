@@ -13,13 +13,15 @@
 namespace fvhyper {
 
 
-extern int vars;
+extern const int vars;
 
 namespace solver {
-    extern bool do_calc_gradients;
-    extern bool do_calc_limiters;
-    extern bool global_dt;
-    extern double limiter_k_value;
+    extern const bool do_calc_gradients;
+    extern const bool do_calc_limiters;
+    extern const bool linear_interpolate;
+    extern const bool diffusive_gradients;
+    extern const bool global_dt;
+    extern const double limiter_k_value;
 }
 
 
@@ -27,10 +29,11 @@ double limiter_func(const double& r);
 
 
 void gradient_for_diffusion(
-    double* grad, 
-    const double* qi, const double* qj, 
-    const double* n, 
-    const double& area, const double& len
+    double* gradx, double* grady, 
+    const double* gxi, const double* gyi,
+    const double* gxj, const double* gyj,
+    const double* qi, const double* qj,
+    const double* di, const double* dj
 );
 
 
@@ -42,19 +45,11 @@ void generate_initial_solution(
 
 void calc_flux(
     double* f,
-    const double* vi,
-    const double* vj,
-    const double* gxi,
-    const double* gyi,
-    const double* gxj,
-    const double* gyj,
-    const double* n,
-    const double* li,
-    const double* lj,
-    const double* di,
-    const double* dj,
-    const double area,
-    const double len
+    const double* qi,
+    const double* qj,
+    const double* gx,
+    const double* gy,
+    const double* n
 );
 
 
@@ -102,6 +97,9 @@ void update_cells(
 
 void update_bounds(
     std::vector<double>& q,
+    std::vector<double>& gx,
+    std::vector<double>& gy,
+    std::vector<double>& limiters,
     mesh& m
 );
 
