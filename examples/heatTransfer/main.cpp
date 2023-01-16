@@ -15,6 +15,7 @@ namespace fvhyper {
         const bool linear_interpolate = false;
         const bool diffusive_gradients = true;
         const bool global_dt = true;
+        const bool smooth_residuals = false;
     }
 
     /* 
