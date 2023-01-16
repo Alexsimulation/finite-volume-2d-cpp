@@ -1,3 +1,18 @@
+/*
+
+       ___     __                    
+      / _/  __/ /  __ _____  ___ ____
+     / _/ |/ / _ \/ // / _ \/ -_) __/
+    /_/ |___/_//_/\_, / .__/\__/_/   
+                 /___/_/             
+
+    Finite Volumes for High Performance
+
+    - Description : Distributed vector and matrix classes templates
+    - Author : Alexis Angers
+    - Contact : alexis.angers@polymtl.ca
+
+*/
 #pragma once
 
 #include <vector>

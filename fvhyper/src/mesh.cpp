@@ -1,3 +1,18 @@
+/*
+
+       ___     __                    
+      / _/  __/ /  __ _____  ___ ____
+     / _/ |/ / _ \/ // / _ \/ -_) __/
+    /_/ |___/_//_/\_, / .__/\__/_/   
+                 /___/_/             
+
+    Finite Volumes for High Performance
+
+    - Description : Mesh reader sources
+    - Author : Alexis Angers
+    - Contact : alexis.angers@polymtl.ca
+
+*/
 #include <fvhyper/mesh.h>
 #include <fstream>
 #include <map>
@@ -476,42 +491,6 @@ void mesh::read_file(std::string name, mpi_wrapper& pool) {
     }
 
     nRealCells = cellsAreas.size();
-    // Reorder cells to have ghost cells at the end
-    /*
-    nRealCells = cellsAreas.size() - ghostCellsCurrentIndices.size();
-    nNonBoundCells = cellsAreas.size();
-    for (auto& id : unique_owners) {
-        // Loop over unique owners ids
-        for (uint i=0; i<ghostCellsCurrentIndices.size(); ++i) {
-            auto& ghost_i = ghostCellsCurrentIndices[i];
-            // Loop over ghost cells
-            // Check if ghost cell is still in the real cells
-            if (ghost_i < nRealCells) {
-                // Check if the ghost cell owner is the current owner id
-                if (ghostCellsOwners[i] == id) {
-                    // Move this cell to the end of the cells vector
-                    cellsNodes.move_to_end(ghost_i);
-                    std::rotate(cellsIsTriangle.begin()+ghost_i, cellsIsTriangle.begin()+ghost_i+1, cellsIsTriangle.end());
-                    // Reduce by 1 all ghost cells indices higher than i
-                    for (auto& ghost_j : ghostCellsCurrentIndices) {
-                        if (ghost_j > ghost_i) ghost_j -= 1;
-                    }
-                    // Change ghost cell current index to end of cells
-                    ghost_i = nNonBoundCells - 1;
-                }
-            }
-        }
-    }
-
-    // Add all the cells edges, areas, etc. (all cell info)
-    for (uint i=0; i<cellsNodes.cols(); ++i) {
-        cellsAreas.push_back(0.);
-        cellsCentersX.push_back(0.);
-        cellsCentersY.push_back(0.);
-        cellsIsGhost.push_back(false);
-        add_cell_edges(i);
-    }
-    */
 
     // Convert nodes and faces info
     convert_node_face_info();
