@@ -4,7 +4,9 @@
 #include <fvhyper/post.h>
 
 
-// Implement the sod shock tube problem using fvhyper
+/*
+    Implementation of the Sod shock tube problem using fvhyper
+*/
 namespace fvhyper {
 
 

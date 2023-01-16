@@ -4,7 +4,9 @@
 #include <fvhyper/post.h>
 
 
-// Implement the sod shock tube problem using fvhyper
+/*
+    Solving an inviscid NACA 0012 high mach number flow problem using fvhyper
+*/
 namespace fvhyper {
 
 

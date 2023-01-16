@@ -3,8 +3,9 @@
 #include <fvhyper/parallel.h>
 #include <fvhyper/post.h>
 
-
-// Implement the sod shock tube problem using fvhyper
+/*
+    Implementation of the flat plate laminar boundary layer using fvhyper
+*/
 namespace fvhyper {
 
 

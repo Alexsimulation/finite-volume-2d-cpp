@@ -4,7 +4,9 @@
 #include <fvhyper/post.h>
 
 
-// Implement an advection problem using fvhyper
+/*
+    Implementation of Burgers equation-type advection problem using fvhyper
+*/
 namespace fvhyper {
 
     // Define global constants

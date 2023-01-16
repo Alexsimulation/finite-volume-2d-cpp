@@ -4,7 +4,9 @@
 #include <fvhyper/post.h>
 
 
-// Implement a heat tranfer problem using fvhyper
+/*
+    Implementation of a heat transfer problem using fvhyper
+*/
 namespace fvhyper {
 
     // Define global constants
