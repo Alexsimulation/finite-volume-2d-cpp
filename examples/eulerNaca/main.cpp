@@ -16,11 +16,12 @@ namespace fvhyper {
         const bool linear_interpolate = true;
         const bool diffusive_gradients = false;
         const bool global_dt = false;
+        const bool smooth_residuals = true;
     }
 
     namespace consts {
         double gamma = 1.4;
-        double cfl = 1.25;
+        double cfl = 3.0;
     }
 
     // Helper function for pressure calc
@@ -165,11 +166,11 @@ namespace fvhyper {
             double ci = sqrt(calc_p(qi)*consts::gamma / qi[0]);
             double cj = sqrt(calc_p(qj)*consts::gamma / qj[0]);
 
-            double max_eig_i = ci + abs(n[0]*qi[1]/qi[0] + n[1]*qi[2]/qi[0]);
-            double max_eig_j = cj + abs(n[0]*qj[1]/qj[0] + n[1]*qj[2]/qj[0]);
+            double max_eig_i = (ci + abs(qi[1]/qi[0]))*n[0] + (ci + abs(qi[2]/qi[0]))*n[1];
+            double max_eig_j = (cj + abs(qj[1]/qj[0]))*n[0] + (cj + abs(qj[2]/qj[0]))*n[1];
 
-            double dt_i = cfl * (m.cellsAreas[i] / le) / max_eig_i;
-            double dt_j = cfl * (m.cellsAreas[j] / le) / max_eig_j;
+            double dt_i = cfl * (m.cellsAreas[i] / le) / abs(max_eig_i);
+            double dt_j = cfl * (m.cellsAreas[j] / le) / abs(max_eig_j);
 
             for (uint k=0; k<vars; ++k) {
                 dt[vars*i + k] = std::min(dt[4*i + k], dt_i);
@@ -330,7 +331,7 @@ int main() {
     m.read_file(name, pool);
 
     fvhyper::solverOptions options;
-    options.max_step = 15000;
+    options.max_step = 5000;
     options.print_interval = 10;
     options.tolerance = 1e-12;
 

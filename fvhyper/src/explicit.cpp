@@ -28,13 +28,40 @@ namespace solver {
 
 
 
-void smoothResiduals(
-    std::vector<double>& r,
+void smooth_residuals(
+    std::vector<double>& qt_,
+    std::vector<double>& smoother_qt,
+    std::vector<double>& smoother,
     mesh& m
 ) {
     /*
         Smooth the residuals in r implicitly using jacobi iteration
     */
+    const uint iters = 2;
+    const double epsilon = 0.6;
+
+    for (int i=0; i<smoother_qt.size(); ++i) {
+        smoother_qt[i] = qt_[i];
+    }
+    for (int jacobi=0; jacobi<iters; ++jacobi) {
+        for (int i=0; i<smoother.size(); ++i) {
+            smoother[i] = 0.;
+        }
+        for (int e=0; e<m.edgesCells.cols(); ++e) {
+            const uint& i = m.edgesCells(e, 0);
+            const uint& j = m.edgesCells(e, 1);
+            for (uint k=0; k<vars; ++k) {
+                smoother[vars*i+k] -= qt_[vars*j+k] * epsilon;
+                smoother[vars*j+k] -= qt_[vars*i+k] * epsilon;
+            }
+        }
+        for (int i=0; i<m.nRealCells; ++i) {
+            const double ne = m.cellsIsTriangle[i] ? 3 : 4;
+            for (uint k=0; k<vars; ++k) {
+                qt_[vars*i+k] = (smoother_qt[vars*i+k] - smoother[vars*i+k])/(1. + ne * epsilon);
+            }
+        }
+    }
 }
 
 
@@ -607,6 +634,8 @@ void complete_calc_qt(
     std::vector<double>& qmin,
     std::vector<double>& qmax,
     std::vector<double>& limiters,
+    std::vector<double>& q_smooth0,
+    std::vector<double>& q_smooth1,
     mesh& m,
     mpi_wrapper& pool
 ) {
@@ -627,6 +656,7 @@ void complete_calc_qt(
 
     // Compute time derivative
     calc_time_derivatives(qt, q, gx, gy, limiters, m);
+    if (solver::smooth_residuals) smooth_residuals(qt, q_smooth0, q_smooth1, m);
 }
 
 
@@ -650,6 +680,8 @@ void run(
     std::vector<double> qmin(q.size());
     std::vector<double> qmax(q.size());
     std::vector<double> dt(q.size());
+    std::vector<double> q_smooth0(q.size());
+    std::vector<double> q_smooth1(q.size());
 
     // RK5 stage coefficients
     std::vector<double> alpha = {
@@ -709,7 +741,7 @@ void run(
         for (uint i=0; i<q.size(); ++i) qk[i] = q[i];
 
         for (const double& a : alpha) {
-            complete_calc_qt(qt, qk, gx, gy, qmin, qmax, limiters, m, pool);
+            complete_calc_qt(qt, qk, gx, gy, qmin, qmax, limiters, q_smooth0, q_smooth1, m, pool);
             update_cells(qk, q, qt, dt, a);
             update_bounds(qk, gx, gy, limiters, m);
             if (pool.size > 1) update_comms(qk, m);

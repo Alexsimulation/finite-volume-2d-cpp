@@ -3,7 +3,7 @@
     first convert with:
         gmsh naca0012_129.msh -o naca.msh -save
     Then partition:
-        gmsh naca.msh naca.geo -setnumber n 4 -parse_and_exit
+        gmsh naca.msh naca.geo -setnumber n 6 -parse_and_exit
 */
 
 

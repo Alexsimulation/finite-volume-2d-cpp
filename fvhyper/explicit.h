@@ -36,8 +36,17 @@ namespace solver {
     extern const bool linear_interpolate;
     extern const bool diffusive_gradients;
     extern const bool global_dt;
+    extern const bool smooth_residuals;
     extern const double limiter_k_value;
 }
+
+
+void smooth_residuals(
+    std::vector<double>& qt_,
+    std::vector<double>& smoother_qt,
+    std::vector<double>& smoother,
+    mesh& m
+);
 
 
 double limiter_func(const double& r);
@@ -154,6 +163,8 @@ void complete_calc_qt(
     std::vector<double>& qmin,
     std::vector<double>& qmax,
     std::vector<double>& limiters,
+    std::vector<double>& q_smooth0,
+    std::vector<double>& q_smooth1,
     mesh& m,
     mpi_wrapper& pool
 );
