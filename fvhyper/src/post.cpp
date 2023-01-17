@@ -20,20 +20,28 @@ namespace fvhyper {
 
 void writeVtk(
     const std::string name,
-    std::vector<std::string> varNames,
     std::vector<double>& q,
     mesh& m,
     int rank,
-    int world_size
+    int world_size,
+    const std::string time
 ) {
+    std::string dash_time = "_" + time;
 
     std::string filename =
         (world_size>1)
-        ? name + "_" + std::to_string(rank) + ".vtu"
-        : name + ".vtu";
+        ? name + "_" + std::to_string(rank) + dash_time + ".vtu"
+        : name + dash_time + ".vtu";
+    
+    if (time != "") {
+        filename = "times/" + filename;
+    }
 
     if ((rank == 0)&(world_size > 1)) {
-        std::string coreFileName = name + "_parallel.pvtu";
+        std::string coreFileName = name + "_parallel" + dash_time + ".pvtu";
+        if (time != "") {
+            coreFileName = "times/" + coreFileName;
+        }
         // Write vtk header file
         std::string core = "";
         core += "<VTKFile type=\"PUnstructuredGrid\" version=\"0.1\" byte_order=\"BigEndian\">\n";
@@ -48,7 +56,7 @@ void writeVtk(
         core += "  </PCells>\n";
         core += "  <PCellData Scalars=\"scalars\">\n";
         core += "    <PDataArray type=\"Float32\" Name=\"rank\"/>\n";
-        for (auto varname : varNames) {
+        for (auto varname : var_names) {
             core += "    <PDataArray type=\"Float32\" Name=\"" + varname + "\"/>\n";
         }
         for (auto& keyval : post::extra_scalars) {
@@ -61,7 +69,8 @@ void writeVtk(
         }
         core += "  </PCellData>\n";
         for (uint i=0; i<world_size; ++i) {
-            core += "  <Piece Source=\"" + name + "_" + std::to_string(i) + ".vtu\"/>\n";
+            std::string filename_i = name + "_" + std::to_string(i) + dash_time + ".vtu";
+            core += "  <Piece Source=\"" + filename_i + "\"/>\n";
         }
         core += "</PUnstructuredGrid>\n";
         core += "</VTKFile>";
@@ -146,10 +155,10 @@ void writeVtk(
     s += "        </DataArray>\n";
 
     // Save variables
-    for (uint i=0; i<varNames.size(); ++i) {
-        s += "        <DataArray type=\"Float32\" Name=\"" + varNames[i] + "\" Format=\"ascii\">\n";
+    for (uint i=0; i<var_names.size(); ++i) {
+        s += "        <DataArray type=\"Float32\" Name=\"" + var_names[i] + "\" Format=\"ascii\">\n";
         for (int j=0; j<m.nRealCells; ++j) {
-            s += "          " + std::to_string(q[varNames.size()*j + i]) + "\n";
+            s += "          " + std::to_string(q[var_names.size()*j + i]) + "\n";
         }
         s += "        </DataArray>\n";
     }
@@ -157,7 +166,7 @@ void writeVtk(
         s += "        <DataArray type=\"Float32\" Name=\"" + keyval.first + "\" Format=\"ascii\">\n";
         for (int j=0; j<m.nRealCells; ++j) {
             double scal_i[1];
-            keyval.second(scal_i, &q[varNames.size()*j]);
+            keyval.second(scal_i, &q[var_names.size()*j]);
             s += "          " + std::to_string(scal_i[0]) + "\n";
         }
         s += "        </DataArray>\n";
@@ -169,7 +178,7 @@ void writeVtk(
             s += "        <DataArray type=\"Float32\" Name=\"" + keyval.first + "\" NumberOfComponents=\"3\" Format=\"ascii\">\n";
             for (int j=0; j<m.nRealCells; ++j) {
                 double vec_i[2];
-                keyval.second(vec_i, &q[varNames.size()*j]);
+                keyval.second(vec_i, &q[var_names.size()*j]);
                 s += "          " + std::to_string(vec_i[0]) + " ";
                 s += std::to_string(vec_i[1]) + " 0.0\n";
             }

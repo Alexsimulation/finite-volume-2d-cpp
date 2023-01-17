@@ -29,14 +29,16 @@ namespace post {
         void (*)(double*, double*)> extra_vectors;
 }
 
+extern const std::vector<std::string> var_names;
+
 
 void writeVtk(
     const std::string name,
-    std::vector<std::string> varNames,
     std::vector<double>& q,
     mesh& m,
     int rank,
-    int world_size
+    int world_size,
+    const std::string time = ""
 );
 
 }

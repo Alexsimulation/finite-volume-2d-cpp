@@ -1,6 +1,6 @@
 #!/bin/bash
 
-names='advection eulerTube heatTransfer eulerNaca navier'
+names='advection eulerTube heatTransfer eulerNaca navier forwardStep'
 
 for name in $names
 do
@@ -10,6 +10,8 @@ do
     rm $name/log.txt
     rm -r $name/logs
     rm -r $name/results
+    rm $name/times/*
+    rm -r $name/anim
     ls */** | grep -v -e "\." -e "\makefile" | xargs -r rm
 done
 

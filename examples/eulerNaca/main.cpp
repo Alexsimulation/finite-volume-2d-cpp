@@ -12,6 +12,12 @@ namespace fvhyper {
 
     // Define global constants
     const int vars = 4;
+    const std::vector<std::string> var_names = {
+        "rho",
+        "rhou",
+        "rhov",
+        "rhoe"
+    };
     namespace solver {
         const bool do_calc_gradients = true;
         const bool do_calc_limiters = true;
@@ -118,10 +124,11 @@ namespace fvhyper {
         const double VR = uR*n[0] + vR*n[1];
         const double VL = uL*n[0] + vL*n[1];
 
-        const double delta = 0.05*c;
-        double lambda_cm = entropy_correction(std::abs(V-c), delta);
-        double lambda_c  = entropy_correction(std::abs(V), delta);
-        double lambda_cp = entropy_correction(std::abs(V+c), delta);
+        // Roe correction
+        // From https://www.researchgate.net/publication/305638346_Cures_for_the_Expansion_Shock_and_the_Shock_Instability_of_the_Roe_Scheme
+        const double lambda_cm = abs(std::min(V-c, VL-c));
+        const double lambda_c  = abs(V);
+        const double lambda_cp = abs(std::max(V+c, VR+c));
 
         const double kF1 = lambda_cm*((pR-pL) - rho*c*(VR-VL))/(2.*c*c);
         const double kF234_0 = lambda_c*((qj[0] - qi[0]) - (pR-pL)/(c*c));
@@ -258,17 +265,10 @@ namespace fvhyper {
         }
         void wall(double* b, double* q, double* n) {
 
-            double U[2];
-            U[0] = q[1]/q[0];
-            U[1] = q[2]/q[0];
-
             // Flip velocity, doesn't change norm of velocity
-            U[0] = U[0] - 2.0 * n[0] * (n[0]*U[0] + n[1]*U[1]);
-            U[1] = U[1] - 2.0 * n[1] * (n[0]*U[0] + n[1]*U[1]);
-
             b[0] = q[0];
-            b[1] = U[0] * q[0];
-            b[2] = U[1] * q[0];
+            b[1] = q[1] - 2.0 * n[0] * (n[0]*q[1] + n[1]*q[2]);
+            b[2] = q[2] - 2.0 * n[1] * (n[0]*q[1] + n[1]*q[2]);
             b[3] = q[3];
         }
         std::map<std::string, void (*)(double*, double*, double*)> 
@@ -339,10 +339,10 @@ int main() {
 
     // Run solver
     std::vector<double> q;
-    fvhyper::run(q, pool, m, options);
+    fvhyper::run(name, q, pool, m, options);
 
     // Save file
-    fvhyper::writeVtk(name, {"rho", "rhou", "rhov", "rhoe"}, q, m, pool.rank, pool.size);
+    fvhyper::writeVtk(name, q, m, pool.rank, pool.size);
 
     return pool.exit();
 }

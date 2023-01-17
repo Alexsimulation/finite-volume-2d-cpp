@@ -29,6 +29,7 @@ namespace fvhyper {
 
 
 extern const int vars;
+extern const std::vector<std::string> var_names;
 
 namespace solver {
     extern const bool do_calc_gradients;
@@ -153,6 +154,8 @@ struct solverOptions {
     uint max_step = 1e8;
     uint print_interval = 1;
     double tolerance = 1e-16;
+    bool save_time_series = false;
+    double time_series_interval = 0.2;
 };
 
 void complete_calc_qt(
@@ -163,14 +166,13 @@ void complete_calc_qt(
     std::vector<double>& qmin,
     std::vector<double>& qmax,
     std::vector<double>& limiters,
-    std::vector<double>& q_smooth0,
-    std::vector<double>& q_smooth1,
     mesh& m,
     mpi_wrapper& pool
 );
 
 
 void run(
+    const std::string name,
     std::vector<double>& q,
     mpi_wrapper& pool,
     mesh& m,

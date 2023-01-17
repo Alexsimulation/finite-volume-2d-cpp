@@ -14,6 +14,7 @@
 
 */
 #include <fvhyper/explicit.h>
+#include <fvhyper/post.h>
 #include <array>
 #include <chrono>
 
@@ -277,9 +278,9 @@ void calc_time_derivatives(
         double ci[2];
         double cj[2];
 
-        const auto& i = m.edgesCells(e, 0);
-        const auto& j = m.edgesCells(e, 1);
-        const auto& le = m.edgesLengths[e];
+        const uint i = m.edgesCells(e, 0);
+        const uint j = m.edgesCells(e, 1);
+        const double le = m.edgesLengths[e];
         
         n[0] = m.edgesNormalsX[e];
         n[1] = m.edgesNormalsY[e];
@@ -344,11 +345,11 @@ void calc_time_derivatives(
 
         // Update qt
         for (uint k=0; k<vars; ++k) {
-            qt[vars*i+k] -= f[k] * le;
-            qt[vars*j+k] += f[k] * le;
+            qt[vars*i+k] -= f[k] * le / m.cellsAreas[i];
+            qt[vars*j+k] += f[k] * le / m.cellsAreas[j];
         }
     }
-    // normalize by cell areas, and if not a real cell, qt = 0
+    // if not a real cell, qt = 0
     for (uint i=0; i<m.cellsAreas.size(); ++i) {
         if (i >= m.nRealCells) {
             for (uint k=0; k<vars; ++k) {
@@ -357,11 +358,6 @@ void calc_time_derivatives(
         } else if (m.cellsIsGhost[i]) {
             for (uint k=0; k<vars; ++k) {
                 qt[vars*i+k] = 0.;
-            }
-        } else {
-            const double invA = 1./m.cellsAreas[i];
-            for (uint k=0; k<vars; ++k) {
-                qt[vars*i+k] *= invA;
             }
         }
     }
@@ -407,8 +403,8 @@ void update_bounds(
                 q_int[i] = q[k] + (gx[k]*di[0] + gy[k]*di[1])*limiters[k];
             }
         } else {
-            for (uint i=0; i<vars; ++i) {
-                q_int[i] = q[vars*id_internal+i];
+            for (uint k=0; k<vars; ++k) {
+                q_int[k] = q[vars*id_internal+k];
             }
         }
 
@@ -634,8 +630,6 @@ void complete_calc_qt(
     std::vector<double>& qmin,
     std::vector<double>& qmax,
     std::vector<double>& limiters,
-    std::vector<double>& q_smooth0,
-    std::vector<double>& q_smooth1,
     mesh& m,
     mpi_wrapper& pool
 ) {
@@ -656,12 +650,12 @@ void complete_calc_qt(
 
     // Compute time derivative
     calc_time_derivatives(qt, q, gx, gy, limiters, m);
-    if (solver::smooth_residuals) smooth_residuals(qt, q_smooth0, q_smooth1, m);
 }
 
 
 
 void run(
+    const std::string name,
     std::vector<double>& q,
     mpi_wrapper& pool,
     mesh& m,
@@ -710,6 +704,10 @@ void run(
         std::cout << std::endl;
     }
 
+
+    double save_time = opt.time_series_interval;
+    uint time_step = 0;
+
     // Init the ghost cells with boundary conditions
     update_bounds(q, gx, gy, limiters, m);
 
@@ -741,7 +739,8 @@ void run(
         for (uint i=0; i<q.size(); ++i) qk[i] = q[i];
 
         for (const double& a : alpha) {
-            complete_calc_qt(qt, qk, gx, gy, qmin, qmax, limiters, q_smooth0, q_smooth1, m, pool);
+            complete_calc_qt(qt, qk, gx, gy, qmin, qmax, limiters, m, pool);
+            if (solver::smooth_residuals) smooth_residuals(qt, q_smooth0, q_smooth1, m);
             update_cells(qk, q, qt, dt, a);
             update_bounds(qk, gx, gy, limiters, m);
             if (pool.size > 1) update_comms(qk, m);
@@ -785,9 +784,34 @@ void run(
             }
         }
 
+        // If save time series, save time series
+        if (opt.save_time_series) {
+            if (time > save_time) {
+                // Save file to ./times/ folder
+                std::string timename = std::to_string(time_step);
+                writeVtk(name, q, m, pool.rank, pool.size, timename);
+                save_time += opt.time_series_interval;
+                time_step += 1;
+            }
+        }
+
         // Edit step and time
         step += 1;
-        if (solver::global_dt) time += dt[0];
+        time += dt[0];
+    }
+
+    if (pool.rank == 0) {
+        // End prints
+        std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+        int microseconds = std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count();
+        double seconds = ((double) microseconds) / 1e6;
+
+        std::cout << step << ", " << time << ", " << seconds << ", ";
+        for (uint i=0; i<vars; ++i) {
+            std::cout << R[i];
+            if (i < vars-1) {std::cout << ", ";}
+        }
+        std::cout << std::endl;
     }
 
 }

@@ -12,6 +12,12 @@ namespace fvhyper {
 
     // Define global constants
     const int vars = 4;
+    const std::vector<std::string> var_names = {
+        "rho",
+        "rhou",
+        "rhov",
+        "rhoe"
+    };
     namespace solver {
         const bool do_calc_gradients = false;
         const bool do_calc_limiters = false;
@@ -53,12 +59,6 @@ namespace fvhyper {
     // First order, no limiters
     double limiter_func(const double& r) {
         return 0.;
-    }
-
-    // Helper function for entropy correction
-    inline double entropy_correction(double l, double d) {
-        if (l > d) { return l; }
-        else { return (l*l + d*d)/(2.*d); }
     }
 
     /*
@@ -115,10 +115,11 @@ namespace fvhyper {
         const double VR = uR*n[0] + vR*n[1];
         const double VL = uL*n[0] + vL*n[1];
 
-        const double delta = 0.05*c;
-        double lambda_cm = entropy_correction(std::abs(V-c), delta);
-        double lambda_c  = entropy_correction(std::abs(V), delta);
-        double lambda_cp = entropy_correction(std::abs(V+c), delta);
+        // Roe correction
+        // From https://www.researchgate.net/publication/305638346_Cures_for_the_Expansion_Shock_and_the_Shock_Instability_of_the_Roe_Scheme
+        const double lambda_cm = abs(std::min(V-c, VL-c));
+        const double lambda_c  = abs(V);
+        const double lambda_cp = abs(std::max(V+c, VR+c));
 
         const double kF1 = lambda_cm*((pR-pL) - rho*c*(VR-VL))/(2.*c*c);
         const double kF234_0 = lambda_c*((qj[0] - qi[0]) - (pR-pL)/(c*c));
@@ -225,10 +226,10 @@ int main() {
 
     // Run solver
     std::vector<double> q;
-    fvhyper::run(q, pool, m, options);
+    fvhyper::run(name, q, pool, m, options);
 
     // Save file
-    fvhyper::writeVtk(name, {"rho", "rhou", "rhov", "rhoe"}, q, m, pool.rank, pool.size);
+    fvhyper::writeVtk(name, q, m, pool.rank, pool.size);
 
     return pool.exit();
 }

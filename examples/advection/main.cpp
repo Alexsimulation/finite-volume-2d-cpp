@@ -11,6 +11,10 @@ namespace fvhyper {
 
     // Define global constants
     const int vars = 2;
+    const std::vector<std::string> var_names = {
+        "u",
+        "v"
+    };
     namespace solver {
         const bool do_calc_gradients = true;
         const bool do_calc_limiters = true;
@@ -173,10 +177,10 @@ int main() {
 
     // Run solver
     std::vector<double> q;
-    fvhyper::run(q, pool, m, options);
+    fvhyper::run(name, q, pool, m, options);
 
     // Save file
-    fvhyper::writeVtk(name, {"u", "v"}, q, m, pool.rank, pool.size);
+    fvhyper::writeVtk(name, q, m, pool.rank, pool.size);
 
     return pool.exit();
 }
