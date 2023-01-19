@@ -695,7 +695,7 @@ void run(
     double R[vars];
     for (uint i=0; i<vars; ++i) {R[i] = 1.0;}
 
-    if (pool.rank == 0) {
+    if ((opt.verbose)&(pool.rank == 0)) {
         std::cout << "Step, Time, RealTime, ";
         for (uint i=0; i<vars; ++i) {
             std::cout << "R(q[" << i << "])";
@@ -753,7 +753,7 @@ void run(
             calc_residuals(R0, qt, m, pool);
             for (uint i=0; i<vars; ++i) {R[i] = R0[i];}
 
-            if (pool.rank == 0) {
+            if ((pool.rank == 0) & (opt.verbose)) {
                 std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
                 int microseconds = std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count();
                 double seconds = ((double) microseconds) / 1e6;
@@ -770,7 +770,7 @@ void run(
             calc_residuals(R, qt, m, pool);
             for (uint i=0; i<vars; ++i) {R[i] = R[i]/R0[i];}
 
-            if ((step % opt.print_interval == 0) & (pool.rank == 0)) {
+            if ((step % opt.print_interval == 0) & (opt.verbose) & (pool.rank == 0)) {
                 std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
                 int microseconds = std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count();
                 double seconds = ((double) microseconds) / 1e6;
@@ -800,7 +800,7 @@ void run(
         time += dt[0];
     }
 
-    if (pool.rank == 0) {
+    if ((opt.verbose)&(pool.rank == 0)) {
         // End prints
         std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
         int microseconds = std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count();

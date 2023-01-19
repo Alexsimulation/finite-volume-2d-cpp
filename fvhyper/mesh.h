@@ -75,6 +75,7 @@ public:
     void dump();
     void swap(const uint& i, const uint& j);
     void move_to_end(const uint& i);
+    const std::vector<uint>& get_vector();
 };
 
 template<uint N>
@@ -122,6 +123,11 @@ template<uint N>
 void meshArray<N>::move_to_end(const uint& i) {
     // Move row i to the end
     std::rotate(nodes.begin() + N*i, nodes.begin() + N*i + N, nodes.end());
+}
+
+template<uint N>
+const std::vector<uint>& meshArray<N>::get_vector() {
+    return nodes;
 }
 
 

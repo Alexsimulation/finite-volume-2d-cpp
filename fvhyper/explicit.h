@@ -153,6 +153,7 @@ struct solverOptions {
     double max_time = 1e10;
     uint max_step = 1e8;
     uint print_interval = 1;
+    bool verbose = true;
     double tolerance = 1e-16;
     bool save_time_series = false;
     double time_series_interval = 0.2;
