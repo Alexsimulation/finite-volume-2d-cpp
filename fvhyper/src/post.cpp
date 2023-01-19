@@ -26,7 +26,7 @@ void writeVtk(
     int world_size,
     const std::string time
 ) {
-    std::string dash_time = "_" + time;
+    std::string dash_time = (time == "") ? "" : "_" + time;
 
     std::string filename =
         (world_size>1)
