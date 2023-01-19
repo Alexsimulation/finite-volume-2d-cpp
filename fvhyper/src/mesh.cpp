@@ -260,44 +260,20 @@ void mesh::compute_mesh() {
 }
 
 
-void mesh::read_file(std::string name, mpi_wrapper& pool) {
-    uint rank = pool.rank;
 
-    std::string filename = "";
-    filename += (pool.size > 1) ? (name + "_" + std::to_string(pool.rank + 1) + ".msh") : name + ".msh";
-
+void mesh::read_entities() {
     std::ifstream infile(filename);
-
     std::string line;
-
-    std::string entitiesSection;
 
     uint n = 0;
     uint ns = 0;
     uint nss = 0;
-    uint start_offset = 0;
 
-    std::map<uint, std::string> physicalNames;
-    std::map<uint, uint> entityTagToPhysicalTag;
-    std::map<std::string, uint> entitiesNumber;
-
-    std::vector<uint> boundaryEdges0;
-    std::vector<uint> boundaryEdges1;
-    std::vector<uint> boundaryEdgesIntTag;
-
-    uint n_in_block = 0;
-    std::vector<uint> block_tags;
-
-    uint blockPhysicalTag;
     uint nGhostEntities;
-    std::vector<uint> unique_owners;
 
-    std::string currentSection = "start";
+    std::string currentSection = "";
 
-    uint counter = 0;
     while (std::getline(infile, line)) {
-        //std::cout << pool.rank << " got to line " << counter << std::endl;
-        counter += 1;
 
         if (line[0] == '$') {
             // This line tells us a section number
@@ -363,6 +339,44 @@ void mesh::read_file(std::string name, mpi_wrapper& pool) {
                 // Reading surfaces
             }
         } else if (currentSection == "Nodes") {
+            // Do not read nodes, break
+            break;
+        }
+
+        n += 1;
+        ns += 1;
+        nss += 1;
+    }
+
+    infile.close();
+}
+
+
+
+void mesh::read_nodes() {
+
+    std::ifstream infile(filename);
+    std::string line;
+
+    uint n = 0;
+    uint ns = 0;
+    uint nss = 0;
+
+    uint start_offset = 0;
+    uint n_in_block = 0;
+
+    std::string currentSection = "";
+
+    std::vector<uint> block_tags;
+
+    while (std::getline(infile, line)) {
+
+        if (line[0] == '$') {
+            // This line tells us a section number
+            currentSection = line.substr(1, line.size());
+            // Restart current section line
+            ns = 0;
+        } else if (currentSection == "Nodes") {
             // Read nodes
             if (ns == 1) {
                 // Read number of node blocks
@@ -387,6 +401,45 @@ void mesh::read_file(std::string name, mpi_wrapper& pool) {
                 nodesY.push_back(l[1]);
             }
         } else if (currentSection == "Elements") {
+            break;
+        }
+
+        n += 1;
+        ns += 1;
+        nss += 1;
+    }
+
+    infile.close();
+}
+
+
+
+
+void mesh::read_boundaries() {
+
+    std::ifstream infile(filename);
+    std::string line;
+
+    uint n = 0;
+    uint ns = 0;
+    uint nss = 0;
+
+    uint start_offset = 0;
+    uint n_in_block = 0;
+
+    uint blockDimension = 0;
+    uint blockPhysicalTag;
+
+    std::string currentSection = "";
+
+    while (std::getline(infile, line)) {
+
+        if (line[0] == '$') {
+            // This line tells us a section number
+            currentSection = line.substr(1, line.size());
+            // Restart current section line
+            ns = 0;
+        } else if (currentSection == "Elements") {
             // Read elements
             if (ns == 1) {
                 // Read number of node blocks
@@ -396,13 +449,15 @@ void mesh::read_file(std::string name, mpi_wrapper& pool) {
             } else if (ns > (start_offset + n_in_block)) {
                 // Read block
                 auto l = str_to_ints(line);
-                if (l[0] == 1) {
+                blockDimension = l[0];
+
+                if (blockDimension == 1) {
                     blockPhysicalTag = entityTagToPhysicalTag.at(l[1]);
                 }
                 n_in_block = l[3];
                 start_offset = ns;
                 nss = 0;
-            } else {
+            } else if (blockDimension == 1) {
                 // Read current tag
                 auto li = str_to_ints(line);
                 uint tag_i = li[0] - 1;
@@ -415,10 +470,73 @@ void mesh::read_file(std::string name, mpi_wrapper& pool) {
                     boundaryEdges0.push_back(originalNodesRef.at(l[0]));
                     boundaryEdges1.push_back(originalNodesRef.at(l[1]));
                     boundaryEdgesIntTag.push_back(blockPhysicalTag);
-                } else {
+                }
+            }
+        }
+
+        n += 1;
+        ns += 1;
+        nss += 1;
+    }
+
+    infile.close();
+}
+
+
+
+void mesh::read_elements() {
+
+    std::ifstream infile(filename);
+    std::string line;
+
+    uint n = 0;
+    uint ns = 0;
+    uint nss = 0;
+
+    uint start_offset = 0;
+    uint n_in_block = 0;
+
+    uint blockDimension = 0;
+    uint blockPhysicalTag;
+
+    std::string currentSection = "";
+
+    while (std::getline(infile, line)) {
+
+        if (line[0] == '$') {
+            // This line tells us a section number
+            currentSection = line.substr(1, line.size());
+            // Restart current section line
+            ns = 0;
+        } else if (currentSection == "Elements") {
+            // Read elements
+            if (ns == 1) {
+                // Read number of node blocks
+                start_offset = 1;
+                n_in_block = 0;
+                nss = 0;
+            } else if (ns > (start_offset + n_in_block)) {
+                // Read block
+                auto l = str_to_ints(line);
+                blockDimension = l[0];
+                if (blockDimension == 1) {
+                    blockPhysicalTag = entityTagToPhysicalTag.at(l[1]);
+                }
+                n_in_block = l[3];
+                start_offset = ns;
+                nss = 0;
+            } else if (blockDimension == 2) {
+                // Read current tag
+                auto li = str_to_ints(line);
+                uint tag_i = li[0] - 1;
+                std::vector<uint> l(li.size()-1);
+                for (uint i=1; i<li.size(); ++i) {
+                    l[i-1] = li[i] - 1;
+                }
+                if (l.size() != 2) {
                     // Triangle or quad cell
-                    originalCellsRef[cellsIsTriangle.size()] = tag_i;
-                    originalCellsRefInv[tag_i] = cellsIsTriangle.size();
+                    currentToOriginalCells[cellsIsTriangle.size()] = tag_i;
+                    originalToCurrentCells[tag_i] = cellsIsTriangle.size();
 
                     uint l_size = l.size();
 
@@ -439,9 +557,38 @@ void mesh::read_file(std::string name, mpi_wrapper& pool) {
                     cellsCentersX.push_back(0.);
                     cellsCentersY.push_back(0.);
                     cellsIsGhost.push_back(false);
-                    add_cell_edges(cellsAreas.size() - 1);
                 }
             }
+        }
+
+        n += 1;
+        ns += 1;
+        nss += 1;
+    }
+
+    infile.close();
+}
+
+
+
+void mesh::read_ghost_elements() {
+
+    std::ifstream infile(filename);
+    std::string line;
+
+    uint n = 0;
+    uint ns = 0;
+    uint nss = 0;
+
+    std::string currentSection = "";
+
+    while (std::getline(infile, line)) {
+
+        if (line[0] == '$') {
+            // This line tells us a section number
+            currentSection = line.substr(1, line.size());
+            // Restart current section line
+            ns = 0;
         } else if (currentSection == "GhostElements") {
             // Read ghost elements
             if (ns == 1) {
@@ -455,12 +602,9 @@ void mesh::read_file(std::string name, mpi_wrapper& pool) {
                 // Read block
                 auto l = str_to_ints(line);
                 ghostCellsOriginalIndices.push_back(l[0] - 1);
-                ghostCellsCurrentIndices.push_back(originalCellsRefInv.at(l[0] - 1));
+                ghostCellsCurrentIndices.push_back(originalToCurrentCells.at(l[0] - 1));
                 ghostCellsOwners.push_back(l[1] - 1);
-                cellsIsGhost[originalCellsRefInv.at(l[0] - 1)] = true;
-                if (std::find(unique_owners.begin(), unique_owners.end(), l[1] - 1) == unique_owners.end()) {
-                    unique_owners.push_back(l[1] - 1);
-                }
+                cellsIsGhost[originalToCurrentCells.at(l[0] - 1)] = true;
             }
         }
 
@@ -469,39 +613,14 @@ void mesh::read_file(std::string name, mpi_wrapper& pool) {
         nss += 1;
     }
 
-    // Sort unique owners from least to max
-    std::sort(unique_owners.begin(), unique_owners.end());
+    infile.close();
+}
 
 
-    // Fix edges part of ghost cells
-    for (auto& i : ghostCellsCurrentIndices) {
-        const uint cell_size = cellsIsTriangle[i] ? 3 : 4;
-        for (uint j=0; j<cell_size; ++j) {
-            uint k = (j==(cell_size-1)) ? 0 : j+1;
-            uint n0 = cellsNodes(i, j);
-            uint n1 = cellsNodes(i, k);
-
-            const uint nmin = std::min(n0, n1);
-            const uint nmax = std::max(n0, n1);
-            const auto tp = std::make_tuple(nmin, nmax);
-            const uint e = edgesRef.at(tp);
-
-            edgesCells(e, 1) = edgesCells(e, 0);
-        }
-    }
-
-    nRealCells = cellsAreas.size();
-
-    // Convert nodes and faces info
-    convert_node_face_info();
-
-    // Compute mesh metrics
-    compute_mesh();
-
-    // Generate communicators
-    make_comms(rank);
 
 
+
+void mesh::add_boundary_cells() {
     // Add boundary cells
     for (uint i=0; i<boundaryEdges0.size(); ++i) {
 
@@ -547,7 +666,6 @@ void mesh::read_file(std::string name, mpi_wrapper& pool) {
             boundaries::bounds.at(physicalNames.at(boundaryEdgesIntTag[i]))
         );
     }
-
 }
 
 
@@ -569,6 +687,9 @@ void mesh::make_comms(uint rank) {
             connected_nodes.push_back(i);
         }
     }
+
+    // Sort connected nodes
+    std::sort(connected_nodes.begin(), connected_nodes.end());
 
     // Set number of communicators and ranks
     comms.resize(connected_nodes.size());
@@ -596,7 +717,7 @@ void mesh::make_comms(uint rank) {
     }
 
     // Set rec indices
-    for (uint i=0; i<ghostCellsCurrentIndices.size(); ++i) {
+    for (uint i=0; i<ghostCellsOriginalIndices.size(); ++i) {
         for (uint j=0; j<comms.size(); ++j) {
             if (ghostCellsOwners[i] == comms[j].out_rank) {
                 comms[j].rec_indices.push_back(
@@ -669,13 +790,71 @@ void mesh::make_comms(uint rank) {
     // These are the original indices, we must map them to current indices
     for (auto& comm : comms) {
         for (uint i=0; i<comm.rec_indices.size(); ++i) {
-            comm.rec_indices[i] = originalCellsRefInv.at(comm.rec_indices[i]);
+            comm.rec_indices[i] = originalToCurrentCells.at(comm.rec_indices[i]);
         }
         for (uint i=0; i<comm.snd_indices.size(); ++i) {
-            comm.snd_indices[i] = originalCellsRefInv.at(comm.snd_indices[i]);
+            comm.snd_indices[i] = originalToCurrentCells.at(comm.snd_indices[i]);
         }
     }
 }
+
+
+
+void mesh::read_file(std::string name, mpi_wrapper& pool) {
+    uint rank = pool.rank;
+
+    filename = "";
+    filename += (pool.size > 1) ? (name + "_" + std::to_string(pool.rank + 1) + ".msh") : name + ".msh";
+
+
+    // Read all contents of the file
+    read_entities();
+    read_nodes();
+    read_boundaries();
+    read_elements();
+    read_ghost_elements();
+
+    // Generate communicators
+    make_comms(rank);
+
+    // Add all cells edges
+    for (uint i=0; i<cellsAreas.size(); ++i) {
+        add_cell_edges(i);
+    }
+
+    // Fix edges part of ghost cells
+    for (uint i=0; i<cellsAreas.size(); ++i) {
+        if (cellsIsGhost[i]) {
+            const uint cell_size = cellsIsTriangle[i] ? 3 : 4;
+            for (uint j=0; j<cell_size; ++j) {
+                uint k = (j==(cell_size-1)) ? 0 : j+1;
+                uint n0 = cellsNodes(i, j);
+                uint n1 = cellsNodes(i, k);
+
+                const uint nmin = std::min(n0, n1);
+                const uint nmax = std::max(n0, n1);
+                const auto tp = std::make_tuple(nmin, nmax);
+                const uint e = edgesRef.at(tp);
+
+                edgesCells(e, 1) = edgesCells(e, 0);
+            }
+        }
+    }
+
+    nRealCells = cellsAreas.size();
+
+    // Convert nodes and faces info
+    convert_node_face_info();
+
+    // Compute mesh metrics
+    compute_mesh();
+
+    // Add boundary cells
+    add_boundary_cells();
+
+}
+
+
 
 
 }

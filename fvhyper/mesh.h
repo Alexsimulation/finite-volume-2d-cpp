@@ -39,6 +39,11 @@ namespace boundaries {
 }
 
 
+template<class T>
+void move_to_end(std::vector<T>& v, const uint& i) {
+    // Move element i in vector to the end
+    std::rotate(v.begin() + i,  v.begin() + i + 1, v.end());
+}
 
 
 class mpi_comm_cells {
@@ -50,6 +55,9 @@ public:
 
     uint own_rank;
     uint out_rank;
+
+    uint start_index;
+    uint length;
 };
 
 
@@ -65,6 +73,7 @@ public:
     uint cols() const;
     uint rows() const;
     void dump();
+    void swap(const uint& i, const uint& j);
     void move_to_end(const uint& i);
 };
 
@@ -104,6 +113,12 @@ void meshArray<N>::dump() {
 }
 
 template<uint N>
+void meshArray<N>::swap(const uint& i, const uint& j) {
+    // Swap row i and row j
+    for (uint k=0; k<N; ++k) std::iter_swap(nodes.begin()+N*i+k, nodes.begin()+N*j+k);
+}
+
+template<uint N>
 void meshArray<N>::move_to_end(const uint& i) {
     // Move row i to the end
     std::rotate(nodes.begin() + N*i, nodes.begin() + N*i + N, nodes.end());
@@ -115,11 +130,17 @@ void meshArray<N>::move_to_end(const uint& i) {
 class mesh {
 public:
 
+    std::string filename;
+
     std::map<std::string, std::string> meshFormat;
+
+    std::map<uint, std::string> physicalNames;
+    std::map<uint, uint> entityTagToPhysicalTag;
+    std::map<std::string, uint> entitiesNumber;
 
     std::vector<double> nodesX;
     std::vector<double> nodesY;
-    std::unordered_map<uint, uint> originalNodesRef;
+    std::map<uint, uint> originalNodesRef;
 
     meshArray<2> edgesNodes;
     meshArray<2> edgesCells;
@@ -130,6 +151,9 @@ public:
     std::vector<double> edgesCentersY;
 
     std::vector<uint> boundaryEdges;
+    std::vector<uint> boundaryEdges0;
+    std::vector<uint> boundaryEdges1;
+    std::vector<uint> boundaryEdgesIntTag;
     std::vector<void (*)(double*, double*, double*)> boundaryFuncs;
 
     std::map<std::tuple<uint, uint>, uint> edgesRef;
@@ -141,17 +165,24 @@ public:
     std::vector<double> cellsCentersY;
     std::vector<bool> cellsIsGhost;
 
-    std::unordered_map<uint, uint> originalCellsRef;
-    std::unordered_map<uint, uint> originalCellsRefInv;
+    std::map<uint, uint> originalToCurrentCells;    // maps original index -> current index
+    std::map<uint, uint> currentToOriginalCells;    // maps original index -> current index
 
     std::vector<uint> ghostCellsOriginalIndices;
     std::vector<uint> ghostCellsCurrentIndices;
     std::vector<uint> ghostCellsOwners;
 
+    uint nRealCells;
+
     std::vector<mpi_comm_cells> comms;
 
-    uint nRealCells;    // Number of real cells (start of ghost cells)
-    uint nNonBoundCells;    // Number of non-boundary cells (start of boundary cells)
+    void read_entities();
+    void read_nodes();
+    void read_boundaries();
+    void read_elements();
+    void read_ghost_elements();
+
+    void add_boundary_cells();
 
     void read_file(std::string filename, mpi_wrapper& pool);
 

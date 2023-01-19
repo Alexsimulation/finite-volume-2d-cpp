@@ -19,7 +19,7 @@ namespace fvhyper {
         const bool do_calc_gradients = true;
         const bool do_calc_limiters = true;
         const bool linear_interpolate = true;
-        const bool diffusive_gradients = true;
+        const bool diffusive_gradients = false;
         const bool global_dt = true;
         const bool smooth_residuals = false;
     }
