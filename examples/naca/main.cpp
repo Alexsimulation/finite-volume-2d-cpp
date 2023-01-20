@@ -24,12 +24,12 @@ namespace fvhyper {
         const bool linear_interpolate = true;
         const bool diffusive_gradients = false;
         const bool global_dt = false;
-        const bool smooth_residuals = true;
+        const bool smooth_residuals = false;
     }
 
     namespace consts {
         double gamma = 1.4;
-        double cfl = 3.0;
+        double cfl = 1.0;
     }
 
     // Helper function for pressure calc
@@ -333,9 +333,9 @@ int main() {
     m.read_file(name, pool);
 
     fvhyper::solverOptions options;
-    options.max_step = 5000;
+    options.max_step = 10000;
     options.print_interval = 10;
-    options.tolerance = 1e-12;
+    options.tolerance = 1e-6;
 
     // Run solver
     std::vector<double> q;

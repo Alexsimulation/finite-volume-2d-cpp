@@ -1,6 +1,6 @@
 #!/bin/bash
 
-names='burgers flatPlate forwardStep heatTransfer naca shockTube'
+names='burgers flatPlate forwardStep heatTransfer naca nacaTransient shockTube'
 
 for name in $names
 do

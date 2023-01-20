@@ -13,7 +13,7 @@ Curve Loop (1) = {1};
 Plane Surface (1) = {1};
 
 Physical Curve("wall") = {1};
-Physical Surface("internal") = {1}
+Physical Surface("internal") = {1};
 
 // Mesh the surface
 Mesh 2;

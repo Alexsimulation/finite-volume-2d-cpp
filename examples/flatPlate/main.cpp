@@ -427,7 +427,7 @@ int main() {
     m.read_file(name, pool);
 
     fvhyper::solverOptions options;
-    options.max_step = 20000;
+    options.max_step = 30000;
     options.print_interval = 20;
     options.tolerance = 1e-20;
 

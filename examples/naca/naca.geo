@@ -19,7 +19,7 @@ Mesh.PartitionCreatePhysicals = 0;
 // Should we save one mesh file per partition?
 Mesh.PartitionSplitMeshFiles = 1;
 
-PartitionMesh n;
+//PartitionMesh n;
 
 Save "naca.msh";
 
