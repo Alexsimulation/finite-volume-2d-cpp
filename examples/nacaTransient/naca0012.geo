@@ -212,12 +212,10 @@ Circle(2)={3, 1, 4};
 Circle(3)={4, 1, 5};
 Circle(4)={5, 1, 2};
 
-Spline(5)={101 : 101+84};
-Spline(6)={185 : 185+24};
-Spline(7)={209 : 209+83, 101};
+Spline(5)={101 : 292, 101};
 
 Curve Loop (1)={1,2,3,4};
-Curve Loop (2)={5, 6, 7};
+Curve Loop (2)={5};
 
 
 Plane Surface(1)={1, 2};
@@ -228,7 +226,7 @@ Rotate{{0,0,1}, {0,1,0}, -20*Pi/180}{ Surface{1}; }
 // Define boundary layers
 
 Field[1] = BoundaryLayer;
-Field[1].CurvesList = {5, 6, 7};
+Field[1].CurvesList = {5};
 Field[1].SizeFar = lc2/3;
 Field[1].Size = lc2/10;
 Field[1].Thickness = lc2;
@@ -239,20 +237,16 @@ Field[1].FanPointsList = {101};
 BoundaryLayer Field = 1;
 
 
-Field[2] = Distance;
-Field[2].CurvesList = {5, 6, 7};
-Field[2].Sampling = 100;
+Field[2] = MathEval;
+Field[2].F = "Min(2, Max(0.04, (Max(-x, 0) + Abs(y))/8 ))";
 
-Field[3] = MathEval;
-Field[3].F = "Min(2, Max(0.08, (Max(-x, 0) + Abs(y))/5 ))";
-
-Background Field = 3;
+Background Field = 2;
 
 
 
 // Define the physical tags
 Physical Curve("farfield") = {1, 2, 3, 4};
-Physical Curve("wall") = {5, 6, 7};
+Physical Curve("wall") = {5};
 Physical Surface("internal") = {1};
 
 // Mesh the surface

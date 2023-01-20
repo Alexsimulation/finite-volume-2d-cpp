@@ -64,12 +64,6 @@ namespace fvhyper {
         }
     }
 
-    // Helper function for entropy correction
-    inline double entropy_correction(double l, double d) {
-        if (l > d) { return l; }
-        else { return (l*l + d*d)/(2.*d); }
-    }
-
     /*
         Define flux function for the euler equations
         Roe flux vector differencing

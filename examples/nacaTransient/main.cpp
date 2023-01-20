@@ -31,7 +31,7 @@ namespace fvhyper {
 
     namespace consts {
         double gamma = 1.4;
-        double cfl = 1.0;
+        double cfl = 1.5;
         double mu = 2e-5;
         double pr = 0.72;
         double cp = 1;
@@ -44,7 +44,7 @@ namespace fvhyper {
         return (consts::gamma - 1)*(q[3] - 0.5/q[0]*(q[1]*q[1] + q[2]*q[2]));
     }
     // Helper function for pressure gradient calc
-    void calc_grad_p(double* gp, const double* q, const double* gx, const double* gy) {
+    inline void calc_grad_p(double* gp, const double* q, const double* gx, const double* gy) {
         // p = (g-1)*rhoe - (g-1)*0.5/rho*(rhou*rhou + rhov*rhov))
         // p = (g-1)*rhoe - (g-1)*0.5*rhou*rhou/rho - (g-1)*0.5/rho*rhov*rhov
         // dp = 0.5*(g-1)*( 2*drhoe - rhou*rhou/rho - rhov*rhov/rho)
@@ -66,7 +66,7 @@ namespace fvhyper {
         return calc_p(q)/(q[0]*consts::r);
     }
     // Helper function for temperature gradient calc
-    void calc_grad_t(double* gt, const double* q, const double* gx, const double* gy) {
+    inline void calc_grad_t(double* gt, const double* q, const double* gx, const double* gy) {
         // t = (1/r) * p/rho
         // dt = (1/r)*( (dp*rho - drho*p)/(rho*rho) )
         double gp[2];
@@ -81,14 +81,14 @@ namespace fvhyper {
         );
     }
     // Compute gradient of velocity u
-    void calc_grad_u(double* gu, const double* q, const double* gx, const double* gy) {
+    inline void calc_grad_u(double* gu, const double* q, const double* gx, const double* gy) {
         // u = rhou/rho
         // du = (rho*drhou - rhou*drho)/(rho*rho)
         gu[0] = (q[0]*gx[1] - q[1]*gx[0])/(q[0]*q[0]);
         gu[1] = (q[0]*gy[1] - q[1]*gy[0])/(q[0]*q[0]);
     }
     // Compute gradient of velocity v
-    void calc_grad_v(double* gv, const double* q, const double* gx, const double* gy) {
+    inline void calc_grad_v(double* gv, const double* q, const double* gx, const double* gy) {
         // v = rhov/rho
         // dv = (rho*drhov - rhov*drho)/(rho*rho)
         gv[0] = (q[0]*gx[2] - q[2]*gx[0])/(q[0]*q[0]);
@@ -240,11 +240,11 @@ namespace fvhyper {
         double cfl = consts::cfl;
         const double C = 2;
 
-        // Set max dt
+        // Set dt scale
         for (uint i=0; i<dt.size(); ++i) {
-            dt[i] = 1.0;
+            dt[i] = 0.;
         }
-        // Calculate time step
+        // Calculate time step scale, store in dt
         for (uint e=0; e<m.edgesNodes.cols(); ++e) {
             double n[2];
 
@@ -262,20 +262,24 @@ namespace fvhyper {
             double ci = sqrt(calc_p(qi)*consts::gamma / qi[0]);
             double cj = sqrt(calc_p(qj)*consts::gamma / qj[0]);
 
-            double eig_ci = (ci + abs(n[0]*qi[1]/qi[0]) + abs(n[1]*qi[2]/qi[0]))*le;
-            double eig_cj = (cj + abs(n[0]*qj[1]/qj[0]) + abs(n[1]*qj[2]/qj[0]))*le;
+            double eig_ci = ci + abs(qi[1]/qi[0]*n[0] + qi[2]/qi[0]*n[1]);
+            double eig_cj = cj + abs(qj[1]/qj[0]*n[0] + qj[2]/qj[0]*n[1]);
 
             double eig_vi = std::max(4./(3.*qi[0]), consts::gamma/qi[0])
                             * (consts::mu/consts::pr) * le*le / m.cellsAreas[i];
             double eig_vj = std::max(4./(3.*qj[0]), consts::gamma/qj[0])
                             * (consts::mu/consts::pr) * le*le / m.cellsAreas[j];
 
-            double dt_i = cfl * m.cellsAreas[i] / (eig_ci + C*eig_vi);
-            double dt_j = cfl * m.cellsAreas[j] / (eig_cj + C*eig_vj);
+            double center_eig = std::max(eig_ci + C*eig_vi, eig_cj + C*eig_vj);
 
             for (uint k=0; k<vars; ++k) {
-                dt[vars*i + k] = std::min(dt[vars*i + k], dt_i);
-                dt[vars*j + k] = std::min(dt[vars*j + k], dt_j);
+                dt[vars*i + k] += center_eig * le;
+                dt[vars*j + k] += center_eig * le;
+            }
+        }
+        for (uint i=0; i<m.cellsAreas.size(); ++i) {
+            for (uint k=0; k<vars; ++k) {
+                dt[vars*i + k] = cfl * m.cellsAreas[i] / dt[vars*i + k];
             }
         }
     }
