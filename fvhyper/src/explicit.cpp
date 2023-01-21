@@ -13,6 +13,7 @@
     - Contact : alexis.angers@polymtl.ca
 
 */
+#include <fvhyper/physics.h>
 #include <fvhyper/explicit.h>
 #include <fvhyper/post.h>
 #include <array>
@@ -23,17 +24,13 @@
 namespace fvhyper {
 
 
-namespace solver {
-    const double limiter_k_value = 7.5;
-}
-
-
 
 void smooth_residuals(
     std::vector<double>& qt_,
     std::vector<double>& smoother_qt,
     std::vector<double>& smoother,
-    mesh& m
+    mesh& m,
+    physics& p
 ) {
     /*
         Smooth the residuals in r implicitly using jacobi iteration
@@ -51,15 +48,15 @@ void smooth_residuals(
         for (int e=0; e<m.edgesCells.cols(); ++e) {
             const uint& i = m.edgesCells(e, 0);
             const uint& j = m.edgesCells(e, 1);
-            for (uint k=0; k<vars; ++k) {
-                smoother[vars*i+k] -= qt_[vars*j+k] * epsilon;
-                smoother[vars*j+k] -= qt_[vars*i+k] * epsilon;
+            for (uint k=0; k<p.vars; ++k) {
+                smoother[p.vars*i+k] -= qt_[p.vars*j+k] * epsilon;
+                smoother[p.vars*j+k] -= qt_[p.vars*i+k] * epsilon;
             }
         }
         for (int i=0; i<m.nRealCells; ++i) {
             const double ne = m.cellsIsTriangle[i] ? 3 : 4;
-            for (uint k=0; k<vars; ++k) {
-                qt_[vars*i+k] = (smoother_qt[vars*i+k] - smoother[vars*i+k])/(1. + ne * epsilon);
+            for (uint k=0; k<p.vars; ++k) {
+                qt_[p.vars*i+k] = (smoother_qt[p.vars*i+k] - smoother[p.vars*i+k])/(1. + ne * epsilon);
             }
         }
     }
@@ -72,7 +69,8 @@ void gradient_for_diffusion(
     const double* gxi, const double* gyi,
     const double* gxj, const double* gyj,
     const double* qi, const double* qj, 
-    const double* ci, const double* cj
+    const double* ci, const double* cj,
+    physics& p
 ) {
     // Evaluate gradient for diffusive fluxes
 
@@ -87,21 +85,21 @@ void gradient_for_diffusion(
     tij[1] = tij[1] / lij;
 
     // Directional derivative
-    double grad_dir[vars];
-    for (uint i=0; i<vars; ++i) {
+    double grad_dir[p.vars];
+    for (uint i=0; i<p.vars; ++i) {
         grad_dir[i] = (qi[i] - qj[i])/lij;
     }
 
     // Arithmetic average gradient
-    double gradx_bar[vars];
-    double grady_bar[vars];
-    for (uint i=0; i<vars; ++i) {
+    double gradx_bar[p.vars];
+    double grady_bar[p.vars];
+    for (uint i=0; i<p.vars; ++i) {
         gradx_bar[i] = (gxi[i] + gxj[i])*0.5;
         grady_bar[i] = (gyi[i] + gyj[i])*0.5;
     }
 
     // Corrected gradient
-    for (uint i=0; i<vars; ++i) {
+    for (uint i=0; i<p.vars; ++i) {
         const double grad_dot = gradx_bar[i]*tij[0] + grady_bar[i]*tij[1];
         gradx[i] = gradx_bar[i] - (grad_dot - grad_dir[i])*tij[0];
         grady[i] = grady_bar[i] - (grad_dot - grad_dir[i])*tij[1];
@@ -113,7 +111,8 @@ void calc_gradients(
     std::vector<double>& gx,
     std::vector<double>& gy,
     const std::vector<double>& q,
-    mesh& m
+    mesh& m,
+    physics& p
 ) {
     // reset gradients to be null
     for (uint i=0; i<gx.size(); ++i) {
@@ -140,32 +139,32 @@ void calc_gradients(
         const double geom_factor = dif / dij;
 
         if (i != j) {
-            double f[vars];
-            for (uint k=0; k<vars; ++k) {
-                f[k] = (q[vars*i+k]*(1.0 - geom_factor) + q[vars*j+k] * geom_factor) * le;
+            double f[p.vars];
+            for (uint k=0; k<p.vars; ++k) {
+                f[k] = (q[p.vars*i+k]*(1.0 - geom_factor) + q[p.vars*j+k] * geom_factor) * le;
             }
-            for (uint k=0; k<vars; ++k) {
-                gx[vars*i+k] += f[k] * nx;
-                gy[vars*i+k] += f[k] * ny;
+            for (uint k=0; k<p.vars; ++k) {
+                gx[p.vars*i+k] += f[k] * nx;
+                gy[p.vars*i+k] += f[k] * ny;
 
-                gx[vars*j+k] -= f[k] * nx;
-                gy[vars*j+k] -= f[k] * ny;
+                gx[p.vars*j+k] -= f[k] * nx;
+                gy[p.vars*j+k] -= f[k] * ny;
             }
         }
     }
     // normalize by cell areas
     for (uint i=0; i<m.nRealCells; ++i) {
         const double invA = 1./m.cellsAreas[i];
-        for (uint k=0; k<vars; ++k) {
-            gx[vars*i+k] *= invA;
-            gy[vars*i+k] *= invA;
+        for (uint k=0; k<p.vars; ++k) {
+            gx[p.vars*i+k] *= invA;
+            gy[p.vars*i+k] *= invA;
         }
     }
     // Set boundary gradients to zero
     for (uint i=m.nRealCells; i<m.cellsAreas.size(); ++i) {
-        for (uint k=0; k<vars; ++k) {
-            gx[vars*i+k] = 0.;
-            gy[vars*i+k] = 0.;
+        for (uint k=0; k<p.vars; ++k) {
+            gx[p.vars*i+k] = 0.;
+            gy[p.vars*i+k] = 0.;
         }
     }
 }
@@ -178,7 +177,8 @@ void calc_limiters(
     const std::vector<double>& q,
     const std::vector<double>& gx,
     const std::vector<double>& gy,
-    mesh& m
+    mesh& m,
+    physics& p
 ) {
     // Reset limiters to two
     for (uint i=0; i<limiters.size(); ++i) {
@@ -194,12 +194,12 @@ void calc_limiters(
         const auto& i = m.edgesCells(e, 0);
         const auto& j = m.edgesCells(e, 1);
         
-        for (uint k=0; k<vars; ++k) {
-            qmin[vars*i+k] = std::min(qmin[vars*i+k], q[vars*j+k]);
-            qmin[vars*j+k] = std::min(qmin[vars*j+k], q[vars*i+k]);
+        for (uint k=0; k<p.vars; ++k) {
+            qmin[p.vars*i+k] = std::min(qmin[p.vars*i+k], q[p.vars*j+k]);
+            qmin[p.vars*j+k] = std::min(qmin[p.vars*j+k], q[p.vars*i+k]);
 
-            qmax[vars*i+k] = std::max(qmax[vars*i+k], q[vars*j+k]);
-            qmax[vars*j+k] = std::max(qmax[vars*j+k], q[vars*i+k]);
+            qmax[p.vars*i+k] = std::max(qmax[p.vars*i+k], q[p.vars*j+k]);
+            qmax[p.vars*j+k] = std::max(qmax[p.vars*j+k], q[p.vars*i+k]);
         }
     }
     // Compute limiters
@@ -217,11 +217,11 @@ void calc_limiters(
                 const double dy = m.edgesCentersY[e] - m.cellsCentersY[id];
                 const double sqrt_area = sqrt(m.cellsAreas[id]);
 
-                for (uint k=0; k<vars; ++k) {
-                    double dqg = gx[vars*id+k]*dx + gy[vars*id+k]*dy;
+                for (uint k=0; k<p.vars; ++k) {
+                    double dqg = gx[p.vars*id+k]*dx + gy[p.vars*id+k]*dy;
                     
-                    double delta_max = qmax[vars*id+k] - q[vars*id+k];
-                    double delta_min = qmin[vars*id+k] - q[vars*id+k];
+                    double delta_max = qmax[p.vars*id+k] - q[p.vars*id+k];
+                    double delta_min = qmin[p.vars*id+k] - q[p.vars*id+k];
 
                     const double Ka = solver::limiter_k_value * sqrt_area;
                     const double K3a = Ka * Ka * Ka;
@@ -240,9 +240,9 @@ void calc_limiters(
                     double lim = 1.0;
                     if (sig < 1.0) {
                         if (dqg > tol) {
-                            lim = limiter_func(delta_max/dqg);
+                            lim = p.limiter(delta_max/dqg);
                         } else if (dqg < -tol) {
-                            lim = limiter_func(delta_min/dqg);
+                            lim = p.limiter(delta_min/dqg);
                         } else {
                             lim = 1.0;
                         }
@@ -250,7 +250,7 @@ void calc_limiters(
 
                     lim = sig + (1.0 - sig)*lim;
 
-                    limiters[vars*id+k] = std::min(limiters[vars*id+k], lim);
+                    limiters[p.vars*id+k] = std::min(limiters[p.vars*id+k], lim);
                 }
             }
         }
@@ -264,7 +264,8 @@ void calc_time_derivatives(
     const std::vector<double>& gx,
     const std::vector<double>& gy,
     const std::vector<double>& limiters,
-    mesh& m
+    mesh& m,
+    physics& p
 ) {
     // reset qt to be null
     for (uint i=0; i<qt.size(); ++i) {
@@ -301,63 +302,73 @@ void calc_time_derivatives(
         dj[1] = cy - cj[1];
 
         // Compute edge center values
-        double qi[vars];
-        double qj[vars];
+        double qi[p.vars];
+        double qj[p.vars];
 
         if (solver::linear_interpolate) {
-            for (uint k=0; k<vars; ++k) {
-                const uint ki = vars*i+k;
-                const uint kj = vars*j+k;
+            for (uint k=0; k<p.vars; ++k) {
+                const uint ki = p.vars*i+k;
+                const uint kj = p.vars*j+k;
                 qi[k] = q[ki] + (gx[ki]*di[0] + gy[ki]*di[1])*limiters[ki];
                 qj[k] = q[kj] + (gx[kj]*dj[0] + gy[kj]*dj[1])*limiters[kj];
             }
         } else {
-            for (uint k=0; k<vars; ++k) {
-                qi[k] = q[vars*i+k];
-                qj[k] = q[vars*j+k];
+            for (uint k=0; k<p.vars; ++k) {
+                qi[k] = q[p.vars*i+k];
+                qj[k] = q[p.vars*j+k];
             }
         }
 
         // Compute viscous fluxes
-        double gxv[vars];
-        double gyv[vars];
+        double gxv[p.vars];
+        double gyv[p.vars];
 
         if (solver::diffusive_gradients) {
             gradient_for_diffusion(
                 gxv, gyv,
-                &gx[vars*i], &gy[vars*i],
-                &gx[vars*j], &gy[vars*j],
-                &q[vars*i], &q[vars*j],
+                &gx[p.vars*i], &gy[p.vars*i],
+                &gx[p.vars*j], &gy[p.vars*j],
+                &q[p.vars*i], &q[p.vars*j],
                 ci, cj
             );
         } else {
-            for (uint k=0; k<vars; ++k) {
+            for (uint k=0; k<p.vars; ++k) {
                 gxv[k] = 0.;
                 gyv[k] = 0.;
             }
         }
 
-        // Compute fluxes
-        double f[vars];
-        calc_flux(
+        // Compute fluxe term
+        double f[p.vars];
+        p.flux(
             f, qi, qj, gxv, gyv, n
         );
 
         // Update qt
-        for (uint k=0; k<vars; ++k) {
-            qt[vars*i+k] -= f[k] * le / m.cellsAreas[i];
-            qt[vars*j+k] += f[k] * le / m.cellsAreas[j];
+        for (uint k=0; k<p.vars; ++k) {
+            qt[p.vars*i+k] -= f[k] * le / m.cellsAreas[i];
+            qt[p.vars*j+k] += f[k] * le / m.cellsAreas[j];
+        }
+    }
+    // Compute time derivatives source terms
+    for (uint i=0; i<m.nRealCells; ++i) {
+        double source[p.vars];
+
+        p.source(source, q[p.vars*i]);
+
+        for (uint k=0; k<p.vars; ++k) {
+            qt[p.vars*i+k] -= source[k];
         }
     }
     // if not a real cell, qt = 0
     for (uint i=0; i<m.cellsAreas.size(); ++i) {
         if (i >= m.nRealCells) {
-            for (uint k=0; k<vars; ++k) {
-                qt[vars*i+k] = 0.;
+            for (uint k=0; k<p.vars; ++k) {
+                qt[p.vars*i+k] = 0.;
             }
         } else if (m.cellsIsGhost[i]) {
-            for (uint k=0; k<vars; ++k) {
-                qt[vars*i+k] = 0.;
+            for (uint k=0; k<p.vars; ++k) {
+                qt[p.vars*i+k] = 0.;
             }
         }
     }
@@ -370,7 +381,8 @@ void update_cells(
     std::vector<double>& ql,
     const std::vector<double>& qt,
     const std::vector<double>& dt,
-    const double v
+    const double v,
+    physics& p
 ) {
     for (uint i=0; i<q.size(); ++i) {
         q[i] = ql[i] + qt[i] * dt[i] * v;
@@ -382,7 +394,8 @@ void update_bounds(
     std::vector<double>& gx,
     std::vector<double>& gy,
     std::vector<double>& limiters,
-    mesh& m
+    mesh& m,
+    physics& p
 ) {
     // Update the ghost cells with boundary conditions
     for (uint b=0; b<m.boundaryEdges.size(); ++b) {
@@ -393,23 +406,24 @@ void update_bounds(
         const uint id_internal = m.edgesCells(e, 0);
         const uint id_bound = m.edgesCells(e, 1);
 
-        double q_int[vars];
+        double q_int[p.vars];
         if (solver::linear_interpolate) {
             double di[2];
             di[0] = m.edgesCentersX[e] - m.cellsCentersX[id_internal];
             di[1] = m.edgesCentersY[e] - m.cellsCentersY[id_internal];
-            for (uint i=0; i<vars; ++i) {
-                const uint k = vars*id_internal+i;
+            for (uint i=0; i<p.vars; ++i) {
+                const uint k = p.vars*id_internal+i;
                 q_int[i] = q[k] + (gx[k]*di[0] + gy[k]*di[1])*limiters[k];
             }
         } else {
-            for (uint k=0; k<vars; ++k) {
-                q_int[k] = q[vars*id_internal+k];
+            for (uint k=0; k<p.vars; ++k) {
+                q_int[k] = q[p.vars*id_internal+k];
             }
         }
 
-        m.boundaryFuncs[b](
-            &q[vars*id_bound],
+        p.boundary(
+            m.boundaryNames[b],
+            &q[p.vars*id_bound],
             q_int,
             n
         );
@@ -419,7 +433,8 @@ void update_bounds(
 
 void update_comms(
     std::vector<double>& q,
-    mesh& m
+    mesh& m,
+    physics& p
 ) {
 
     std::vector<MPI_Request> reqs(m.comms.size());
@@ -428,8 +443,8 @@ void update_comms(
 
         uint iter = 0;
         for (const auto& i : comm.snd_indices) {
-            for (uint j=0; j<vars; ++j) {
-                comm.snd_q[vars*iter + j] = q[vars*i + j];
+            for (uint j=0; j<p.vars; ++j) {
+                comm.snd_q[p.vars*iter + j] = q[p.vars*i + j];
             }
             iter += 1;
         }
@@ -461,8 +476,8 @@ void update_comms(
         );
         uint iter = 0;
         for (const auto& i : comm.rec_indices) {
-            for (uint j=0; j<vars; ++j) {
-                q[vars*i + j] = comm.rec_q[vars*iter + j];
+            for (uint j=0; j<p.vars; ++j) {
+                q[p.vars*i + j] = comm.rec_q[p.vars*iter + j];
             }
             iter += 1;
         }
@@ -482,15 +497,16 @@ void calc_residuals(
     double* R,
     std::vector<double>& qt,
     mesh& m,
-    mpi_wrapper& pool
+    mpi_wrapper& pool,
+    physics& p
 ) {
-    for (uint i=0; i<vars; ++i) {
+    for (uint i=0; i<p.vars; ++i) {
         R[i] = 0.;
     }
     for (uint i=0; i<m.nRealCells; ++i) {
         if (!m.cellsIsGhost[i]) {
-            for (uint j=0; j<vars; ++j) {
-                R[j] += qt[vars*i+j]*qt[vars*i+j] * m.cellsAreas[i];
+            for (uint j=0; j<p.vars; ++j) {
+                R[j] += qt[p.vars*i+j]*qt[p.vars*i+j] * m.cellsAreas[i];
             }
         }
     }
@@ -498,31 +514,31 @@ void calc_residuals(
     if (pool.rank != 0) {
         MPI_Send(
         /* data         = */ R, 
-        /* count        = */ vars, 
+        /* count        = */ p.vars, 
         /* datatype     = */ MPI_DOUBLE, 
         /* destination  = */ 0, 
         /* tag          = */ 0,
         /* communicator = */ MPI_COMM_WORLD
         );
     } else {
-        double R_other[vars];
+        double R_other[p.vars];
         for (uint i=1; i<pool.size; ++i) {
             MPI_Recv(
             /* data         = */ R_other, 
-            /* count        = */ vars, 
+            /* count        = */ p.vars, 
             /* datatype     = */ MPI_DOUBLE, 
             /* source       = */ i, 
             /* tag          = */ 0,
             /* communicator = */ MPI_COMM_WORLD,
             /* status       = */ MPI_STATUS_IGNORE
             );
-            for (uint j=0; j<vars; ++j) {
+            for (uint j=0; j<p.vars; ++j) {
                 R[j] += R_other[j];
             }
         }
     }
 
-    for (uint i=0; i<vars; ++i) {
+    for (uint i=0; i<p.vars; ++i) {
         R[i] = sqrt(R[i]);
     }
 
@@ -530,7 +546,7 @@ void calc_residuals(
         for (uint i=1; i<pool.size; ++i) {
             MPI_Send(
             /* data         = */ R, 
-            /* count        = */ vars, 
+            /* count        = */ p.vars, 
             /* datatype     = */ MPI_DOUBLE, 
             /* destination  = */ i, 
             /* tag          = */ 0,
@@ -540,7 +556,7 @@ void calc_residuals(
     } else {
         MPI_Recv(
         /* data         = */ R, 
-        /* count        = */ vars, 
+        /* count        = */ p.vars, 
         /* datatype     = */ MPI_DOUBLE, 
         /* source       = */ 0, 
         /* tag          = */ 0,
@@ -552,7 +568,11 @@ void calc_residuals(
 }
 
 
-void min_dt(std::vector<double>& dt, mesh& m) {
+void min_dt(
+    std::vector<double>& dt, 
+    mesh& m,
+    physics& p
+) {
     // Minimize dt
     double min_dt = dt[0];
     for (uint i=0; i<dt.size(); ++i) {
@@ -564,7 +584,11 @@ void min_dt(std::vector<double>& dt, mesh& m) {
 }
 
 
-void validate_dt(std::vector<double>& dt, mpi_wrapper& pool) {
+void validate_dt(
+    std::vector<double>& dt, 
+    mpi_wrapper& pool,
+    physics& p
+) {
     // Send dt to node 0
     if (pool.rank != 0) {
         MPI_Send(
@@ -631,7 +655,8 @@ void complete_calc_qt(
     std::vector<double>& qmax,
     std::vector<double>& limiters,
     mesh& m,
-    mpi_wrapper& pool
+    mpi_wrapper& pool,
+    physics& p
 ) {
     // Compute gradients
     if (solver::do_calc_gradients) {
@@ -659,10 +684,11 @@ void run(
     std::vector<double>& q,
     mpi_wrapper& pool,
     mesh& m,
-    solverOptions& opt
+    solverOptions& opt,
+    physics& p
 ) {
 
-    q.resize(vars*m.cellsAreas.size());
+    q.resize(p.vars*m.cellsAreas.size());
     generate_initial_solution(q, m);
 
     std::vector<double> qk(q.size());
@@ -691,15 +717,15 @@ void run(
     uint step = 0;
     double time = 0;
 
-    double R0[vars];
-    double R[vars];
-    for (uint i=0; i<vars; ++i) {R[i] = 1.0;}
+    double R0[p.vars];
+    double R[p.vars];
+    for (uint i=0; i<p.vars; ++i) {R[i] = 1.0;}
 
     if ((opt.verbose)&(pool.rank == 0)) {
         std::cout << "Step, Time, RealTime, ";
-        for (uint i=0; i<vars; ++i) {
+        for (uint i=0; i<p.vars; ++i) {
             std::cout << "R(q[" << i << "])";
-            if (i < vars-1) {std::cout << ", ";}
+            if (i < p.vars-1) {std::cout << ", ";}
         }
         std::cout << std::endl;
     }
@@ -717,7 +743,7 @@ void run(
         // Convergence check
         double Rmax = 0.0;
         if (step > 0) {
-            for (uint i=0; i<vars; ++i) {Rmax = std::max(R[i], Rmax);}
+            for (uint i=0; i<p.vars; ++i) {Rmax = std::max(R[i], Rmax);}
         } else {Rmax = 1.0;}
 
         if ((step >= opt.max_step)|(time >= opt.max_time)|(Rmax < opt.tolerance)) {
@@ -751,7 +777,7 @@ void run(
         // Compute residuals
         if (step == 0) {
             calc_residuals(R0, qt, m, pool);
-            for (uint i=0; i<vars; ++i) {R[i] = R0[i];}
+            for (uint i=0; i<p.vars; ++i) {R[i] = R0[i];}
 
             if ((pool.rank == 0) & (opt.verbose)) {
                 std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
@@ -759,16 +785,16 @@ void run(
                 double seconds = ((double) microseconds) / 1e6;
 
                 std::cout << step << ", " << time << ", " << seconds << ", ";
-                for (uint i=0; i<vars; ++i) {
+                for (uint i=0; i<p.vars; ++i) {
                     std::cout << "1.0";
-                    if (i < vars-1) {std::cout << ", ";}
+                    if (i < p.vars-1) {std::cout << ", ";}
                 }
                 std::cout << std::endl;
             }
         } else if ((step % opt.print_interval == 0)|(opt.tolerance > 1.01e-16)) {
             
             calc_residuals(R, qt, m, pool);
-            for (uint i=0; i<vars; ++i) {R[i] = R[i]/R0[i];}
+            for (uint i=0; i<p.vars; ++i) {R[i] = R[i]/R0[i];}
 
             if ((step % opt.print_interval == 0) & (opt.verbose) & (pool.rank == 0)) {
                 std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
@@ -776,9 +802,9 @@ void run(
                 double seconds = ((double) microseconds) / 1e6;
 
                 std::cout << step << ", " << time << ", " << seconds << ", ";
-                for (uint i=0; i<vars; ++i) {
+                for (uint i=0; i<p.vars; ++i) {
                     std::cout << R[i];
-                    if (i < vars-1) {std::cout << ", ";}
+                    if (i < p.vars-1) {std::cout << ", ";}
                 }
                 std::cout << std::endl;
             }
@@ -807,9 +833,9 @@ void run(
         double seconds = ((double) microseconds) / 1e6;
 
         std::cout << step << ", " << time << ", " << seconds << ", ";
-        for (uint i=0; i<vars; ++i) {
+        for (uint i=0; i<p.vars; ++i) {
             std::cout << R[i];
-            if (i < vars-1) {std::cout << ", ";}
+            if (i < p.vars-1) {std::cout << ", ";}
         }
         std::cout << std::endl;
     }

@@ -36,7 +36,14 @@ protected:
     bool do_calc_limiters = false;
     bool linear_interpolate = false;
     bool diffusive_gradients = true;
+    bool fixed_dt = false;
     double limiter_k_value = 10.;
+
+    bool flux_term = true;
+    bool source_term = true;
+
+    bool fixed_dt = false;
+    double dt = -1;   // fixed dt value. for a variable dt, keep fixed_dt < 0
 
 public:
 
@@ -44,10 +51,14 @@ public:
 
     void set_names(std::vector<std::string> names);
 
+    void set_fixed_dt(double dt_in);
 
-    void operator()(
+
+    // Physics definition members
+
+    // Required members
+    virtual void flux(
         double* flux,
-        double* source,
         const double* qi,
         const double* qj,
         const double* gx,
@@ -55,16 +66,31 @@ public:
         const double* n
     );
 
-    void dt(
-        std::vector<double>& dt,
-        const std::vector<double>& q,
-        mesh& m
+    virtual void source(
+        double* source,
+        const double* q,
     );
 
-    void initial_q(
+    virtual void boundary(
+        std::string& name,
+        double* b,
+        double* q,
+        double* n
+    );
+
+    virtual void init(
         double* q,
         double& x,
         double& y
+    );
+
+    // Optional members
+
+    void eigenvalue_for_cfl(
+        double* q,
+        double* n,
+        double& length
+        double& area
     );
 
     double limiter(const double& r);
@@ -72,16 +98,6 @@ public:
 };
 
 
-
-
-
-
-
-// Implementations
-
-void physics::set_names(std::vector<std::string> names) {
-    var_names = names;
-}
 
 
 

@@ -662,9 +662,7 @@ void mesh::add_boundary_cells() {
         if (boundaries::bounds.find(physicalNames[boundaryEdgesIntTag[i]]) == boundaries::bounds.end()) {
             throw std::invalid_argument("Physical name " + physicalNames[boundaryEdgesIntTag[i]] + " of tag " + std::to_string(boundaryEdgesIntTag[i]) + " not in mesh");
         }
-        boundaryFuncs.push_back(
-            boundaries::bounds.at(physicalNames.at(boundaryEdgesIntTag[i]))
-        );
+        boundaryNames.push_back(physicalNames.at(boundaryEdgesIntTag[i]));
     }
 }
 

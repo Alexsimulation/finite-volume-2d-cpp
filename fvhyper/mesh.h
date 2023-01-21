@@ -160,7 +160,7 @@ public:
     std::vector<uint> boundaryEdges0;
     std::vector<uint> boundaryEdges1;
     std::vector<uint> boundaryEdgesIntTag;
-    std::vector<void (*)(double*, double*, double*)> boundaryFuncs;
+    std::vector<std::string> boundaryNames;
 
     std::map<std::tuple<uint, uint>, uint> edgesRef;
 
