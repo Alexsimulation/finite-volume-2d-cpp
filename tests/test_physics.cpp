@@ -22,15 +22,22 @@
 
 
 
-class heat : public physics {
+class heat : public fvhyper::physics {
 
+public:
     heat() : physics(1) {
 
         // Set a fixed dt
         set_fixed_dt(1e-5);
 
+        // Set the variable names
+        var_names = {"T"};
+
+        // Set extra scalars
+        extra_scalars = {"2T"};
+
         // Disable the source term calculation
-        source_term = false;
+        do_source_term = false;
     }
 
     void flux(
@@ -40,8 +47,8 @@ class heat : public physics {
         const double* gx,
         const double* gy,
         const double* n
-    ) override {
-        return -1.0*(gx[0]*n[0] + gy[0]*n[1]);
+    ) {
+        flux[0] = -1.0*(gx[0]*n[0] + gy[0]*n[1]);
     }
 
     void boundary(
@@ -49,7 +56,7 @@ class heat : public physics {
         double* b,
         double* q,
         double* n
-    ) override {
+    ) {
         // Check which boundary we're at
         if (name == "wall") {
             b[0] = 1.;
@@ -69,6 +76,23 @@ class heat : public physics {
         }
     }
 
+
+    void calculate_extra_scalars(double* s, double* q, std::string& name) {
+        if (name == "2T") {
+            s[0] = 2.0*q[0];
+        }
+    }
+
+};
+
+
+
+
+int main() {
+
+    heat physics;
+
+    return 0;
 }
 
 

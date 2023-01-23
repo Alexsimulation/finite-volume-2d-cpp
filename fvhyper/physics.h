@@ -13,8 +13,10 @@
     - Contact : alexis.angers@polymtl.ca
 
 */
-#include <fvhyper/mesh.h>
+#pragma once
+
 #include <vector>
+#include <string>
 
 
 namespace fvhyper {
@@ -27,25 +29,26 @@ namespace fvhyper {
 */
 class physics {
 
-protected:
+public:
     const int vars;
     std::vector<std::string> var_names;
+
+    std::vector<std::string> extra_scalars;
+    std::vector<std::string> extra_vectors;
 
     // Default 
     bool do_calc_gradients = true;
     bool do_calc_limiters = false;
-    bool linear_interpolate = false;
-    bool diffusive_gradients = true;
-    bool fixed_dt = false;
+    bool do_linear_interpolate = false;
+    bool do_diffusive_gradients = true;
+    bool do_smooth_residuals;
     double limiter_k_value = 10.;
 
-    bool flux_term = true;
-    bool source_term = true;
+    bool do_source_term = true;
 
     bool fixed_dt = false;
     double dt = -1;   // fixed dt value. for a variable dt, keep fixed_dt < 0
 
-public:
 
     physics(const int& n) : vars(n) {}
 
@@ -57,6 +60,7 @@ public:
     // Physics definition members
 
     // Required members
+
     virtual void flux(
         double* flux,
         const double* qi,
@@ -64,11 +68,6 @@ public:
         const double* gx,
         const double* gy,
         const double* n
-    );
-
-    virtual void source(
-        double* source,
-        const double* q,
     );
 
     virtual void boundary(
@@ -86,14 +85,21 @@ public:
 
     // Optional members
 
-    void eigenvalue_for_cfl(
-        double* q,
-        double* n,
-        double& length
-        double& area
+    virtual void source(
+        double* source,
+        const double* q
     );
 
-    double limiter(const double& r);
+    virtual double eigenvalue_for_cfl(
+        double* q,
+        double* n,
+        const double& dx
+    );
+
+    virtual double limiter(const double& r);
+
+    void calculate_extra_scalars(double* s, double* q, std::string& name);
+    void calculate_extra_vectors(double* v, double* q, std::string& name);
 
 };
 

@@ -30,15 +30,36 @@ namespace fvhyper {
 
 
 struct solverOptions {
-    double max_time = 1e10;
-    uint max_step = 1e8;
-    uint print_interval = 1;
-    bool verbose = true;
-    double tolerance = 1e-16;
+
     bool global_dt = true;
     bool save_time_series = false;
+    bool verbose = true;
+
+    uint print_interval = 1;
+    uint max_step = 1e8;
+
+    double max_time = 1e10;
+    double tolerance = 1e-16;
     double time_series_interval = 0.2;
+    double cfl = 0.5;
 };
+
+
+
+void generate_initial_solution(
+    std::vector<double>& q,
+    mesh& m,
+    physics& p
+);
+
+
+
+void calculate_dt(
+    std::vector<double>& dt,
+    std::vector<double>& q,
+    mesh& m,
+    physics& p
+);
 
 
 void smooth_residuals(

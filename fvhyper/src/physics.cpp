@@ -20,6 +20,8 @@
 
 namespace fvhyper {
 
+
+// Default members
 void physics::set_names(std::vector<std::string> names) {
     var_names = names;
 }
@@ -29,8 +31,8 @@ void physics::set_fixed_dt(double dt_in) {
     dt = dt_in;
 }
 
-
-virtual void physics::flux(
+// Required members
+void physics::flux(
     double* flux,
     const double* qi,
     const double* qj,
@@ -39,43 +41,46 @@ virtual void physics::flux(
     const double* n
 ) {}
 
-
-virtual void physics::source(
-    double* source,
-    const double* q,
-) {}
-
-
-virtual void boundary(
+void physics::boundary(
     std::string& name,
     double* b,
     double* q,
     double* n
 ) {}
 
-
-virtual void init(
+void physics::init(
     double* q,
     double& x,
     double& y
 ) {}
 
+// Optional members
+void physics::source(
+    double* source,
+    const double* q
+) {
+    for (uint i=0; i<vars; ++i) {source[i] = 0;}
+}
 
-void physics::eigenvalue_for_cfl(
+
+double physics::eigenvalue_for_cfl(
     double* q,
     double* n,
-    double& length
-    double& area
+    const double& dx
 ) {
     if (!fixed_dt) {
         throw std::logic_error( "Tried to call fvhyper::physics::eigenvalue_for_cfl() without implementation." );
     }
+    return 1;
 }
 
 double physics::limiter(const double& r) {
     return 1.;
 }
 
+
+void physics::calculate_extra_scalars(double* s, double* q, std::string& name) {}
+void physics::calculate_extra_vectors(double* v, double* q, std::string& name) {}
 
 
 }

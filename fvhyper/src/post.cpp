@@ -20,6 +20,7 @@ namespace fvhyper {
 
 void writeVtk(
     const std::string name,
+    physics& p,
     std::vector<double>& q,
     mesh& m,
     int rank,
@@ -56,15 +57,15 @@ void writeVtk(
         core += "  </PCells>\n";
         core += "  <PCellData Scalars=\"scalars\">\n";
         core += "    <PDataArray type=\"Float32\" Name=\"rank\"/>\n";
-        for (auto varname : var_names) {
+        for (auto varname : p.var_names) {
             core += "    <PDataArray type=\"Float32\" Name=\"" + varname + "\"/>\n";
         }
-        for (auto& keyval : post::extra_scalars) {
-            core += "    <PDataArray type=\"Float32\" Name=\"" + keyval.first + "\"/>\n";
+        for (auto& extra_name : p.extra_scalars) {
+            core += "    <PDataArray type=\"Float32\" Name=\"" + extra_name + "\"/>\n";
         }
-        if (post::extra_vectors.size() > 0) {
-            for (auto& keyval : post::extra_vectors) {
-                core += "    <PDataArray type=\"Float32\" Name=\"" + keyval.first + "\" NumberOfComponents=\"3\"/>\n";
+        if (p.extra_vectors.size() > 0) {
+            for (auto& extra_name : p.extra_vectors) {
+                core += "    <PDataArray type=\"Float32\" Name=\"" + extra_name + "\" NumberOfComponents=\"3\"/>\n";
             }
         }
         core += "  </PCellData>\n";
@@ -155,30 +156,32 @@ void writeVtk(
     s += "        </DataArray>\n";
 
     // Save variables
-    for (uint i=0; i<var_names.size(); ++i) {
-        s += "        <DataArray type=\"Float32\" Name=\"" + var_names[i] + "\" Format=\"ascii\">\n";
+    for (uint i=0; i<p.var_names.size(); ++i) {
+        s += "        <DataArray type=\"Float32\" Name=\"" + p.var_names[i] + "\" Format=\"ascii\">\n";
         for (int j=0; j<m.nRealCells; ++j) {
-            s += "          " + std::to_string(q[var_names.size()*j + i]) + "\n";
+            s += "          " + std::to_string(q[p.var_names.size()*j + i]) + "\n";
         }
         s += "        </DataArray>\n";
     }
-    for (auto& keyval : post::extra_scalars) {
-        s += "        <DataArray type=\"Float32\" Name=\"" + keyval.first + "\" Format=\"ascii\">\n";
+
+    // Save extra scalars
+    for (auto& extra_name : p.extra_scalars) {
+        s += "        <DataArray type=\"Float32\" Name=\"" + extra_name + "\" Format=\"ascii\">\n";
         for (int j=0; j<m.nRealCells; ++j) {
             double scal_i[1];
-            keyval.second(scal_i, &q[var_names.size()*j]);
+            p.calculate_extra_scalars(scal_i, &q[p.vars*j], extra_name);
             s += "          " + std::to_string(scal_i[0]) + "\n";
         }
         s += "        </DataArray>\n";
     }
 
-    // Save vectors
-    if (post::extra_vectors.size() > 0) {
-        for (auto& keyval : post::extra_vectors) {
-            s += "        <DataArray type=\"Float32\" Name=\"" + keyval.first + "\" NumberOfComponents=\"3\" Format=\"ascii\">\n";
+    // Save extra vectors
+    if (p.extra_vectors.size() > 0) {
+        for (auto& extra_name : p.extra_vectors) {
+            s += "        <DataArray type=\"Float32\" Name=\"" + extra_name + "\" NumberOfComponents=\"3\" Format=\"ascii\">\n";
             for (int j=0; j<m.nRealCells; ++j) {
                 double vec_i[2];
-                keyval.second(vec_i, &q[var_names.size()*j]);
+                p.calculate_extra_vectors(vec_i, &q[p.vars*j], extra_name);
                 s += "          " + std::to_string(vec_i[0]) + " ";
                 s += std::to_string(vec_i[1]) + " 0.0\n";
             }

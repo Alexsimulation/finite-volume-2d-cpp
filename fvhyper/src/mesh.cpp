@@ -14,6 +14,7 @@
 
 */
 #include <fvhyper/mesh.h>
+#include <fvhyper/physics.h>
 #include <fstream>
 #include <map>
 #include <algorithm>
@@ -659,16 +660,14 @@ void mesh::add_boundary_cells() {
 
         // Add edge index to boundary edges
         boundaryEdges.push_back(e);
-        if (boundaries::bounds.find(physicalNames[boundaryEdgesIntTag[i]]) == boundaries::bounds.end()) {
-            throw std::invalid_argument("Physical name " + physicalNames[boundaryEdgesIntTag[i]] + " of tag " + std::to_string(boundaryEdgesIntTag[i]) + " not in mesh");
-        }
+        
         boundaryNames.push_back(physicalNames.at(boundaryEdgesIntTag[i]));
     }
 }
 
 
 
-void mesh::make_comms(uint rank) {
+void mesh::make_comms(uint rank, physics& p) {
     // Make communicators
 
     // Compute all ranks of connected nodes
@@ -710,8 +709,8 @@ void mesh::make_comms(uint rank) {
     for (uint i=0; i<comms.size(); ++i) {
         comms[i].snd_indices.reserve(sizes[i]);
         comms[i].rec_indices.reserve(sizes[i]);
-        comms[i].snd_q.resize(vars*sizes[i]);
-        comms[i].rec_q.resize(vars*sizes[i]);
+        comms[i].snd_q.resize(p.vars*sizes[i]);
+        comms[i].rec_q.resize(p.vars*sizes[i]);
     }
 
     // Set rec indices
@@ -753,7 +752,7 @@ void mesh::make_comms(uint rank) {
         /* status       = */ MPI_STATUS_IGNORE
         );
         comm.snd_indices.resize(this_size);
-        comm.snd_q.resize(vars*this_size);
+        comm.snd_q.resize(p.vars*this_size);
     }
 
 
@@ -798,7 +797,7 @@ void mesh::make_comms(uint rank) {
 
 
 
-void mesh::read_file(std::string name, mpi_wrapper& pool) {
+void mesh::read_file(std::string name, mpi_wrapper& pool, physics& p) {
     uint rank = pool.rank;
 
     filename = "";
@@ -813,7 +812,7 @@ void mesh::read_file(std::string name, mpi_wrapper& pool) {
     read_ghost_elements();
 
     // Generate communicators
-    make_comms(rank);
+    make_comms(rank, p);
 
     // Add all cells edges
     for (uint i=0; i<cellsAreas.size(); ++i) {

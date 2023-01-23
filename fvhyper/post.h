@@ -16,6 +16,7 @@
 #pragma once
 
 #include <fvhyper/mesh.h>
+#include <fvhyper/physics.h>
 
 
 namespace fvhyper {
@@ -29,11 +30,10 @@ namespace post {
         void (*)(double*, double*)> extra_vectors;
 }
 
-extern const std::vector<std::string> var_names;
-
 
 void writeVtk(
     const std::string name,
+    physics& p,
     std::vector<double>& q,
     mesh& m,
     int rank,

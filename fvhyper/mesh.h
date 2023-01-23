@@ -24,13 +24,11 @@
 #include <iostream>
 #include <algorithm>
 #include <fvhyper/parallel.h>
+#include <fvhyper/physics.h>
 
 
 namespace fvhyper {
 
-
-
-extern const int vars;
 
 
 namespace boundaries {
@@ -190,9 +188,9 @@ public:
 
     void add_boundary_cells();
 
-    void read_file(std::string filename, mpi_wrapper& pool);
+    void read_file(std::string filename, mpi_wrapper& pool, physics& p);
 
-    void make_comms(uint rank);
+    void make_comms(uint rank, physics& p);
 
     int find_edge_with_nodes(const uint n0, const uint n1);
     uint find_bound_with_nodes(const uint n0, const uint n1);

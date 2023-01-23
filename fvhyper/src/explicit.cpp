@@ -63,6 +63,73 @@ void smooth_residuals(
 }
 
 
+void generate_initial_solution(
+    std::vector<double>& q,
+    mesh& m,
+    physics& p
+) {
+    for (uint i=0; i<m.cellsAreas.size(); ++i) {
+        p.init(
+            &q[p.vars*i], m.cellsCentersX[i], m.cellsCentersY[i]
+        );
+    }
+}
+
+
+void calculate_dt(
+    std::vector<double>& dt,
+    std::vector<double>& q,
+    mesh& m,
+    physics& p,
+    double& cfl
+) {
+
+    if (p.fixed_dt) {
+        // Fixed time step, simply set dt to time step size
+        for (auto& dti : dt) dti = p.dt;
+    } else {
+        // Set dt scale
+        for (uint i=0; i<dt.size(); ++i) {
+            dt[i] = 0.;
+        }
+        // Calculate time step scale, store in dt
+        for (uint e=0; e<m.edgesNodes.cols(); ++e) {
+            double n[2];
+
+            const auto& i = m.edgesCells(e, 0);
+            const auto& j = m.edgesCells(e, 1);
+            const auto& le = m.edgesLengths[e];
+            
+            n[0] = m.edgesNormalsX[e];
+            n[1] = m.edgesNormalsY[e];
+
+            // From cell i to cell j
+            // Compute max eigenvalue
+            const double dx_i = m.cellsAreas[i]/le;
+            const double dx_j = m.cellsAreas[j]/le;
+
+            double qc[p.vars];
+            for (uint k=0; k<p.vars; ++k) {
+                qc[k] = 0.5*(q[p.vars*i+k] + q[p.vars*j+k]);
+            }
+
+            const double eig_i = p.eigenvalue_for_cfl(qc, n, dx_i);
+            const double eig_j = p.eigenvalue_for_cfl(qc, n, dx_j);
+
+            for (uint k=0; k<p.vars; ++k) {
+                dt[p.vars*i + k] += eig_i * le;
+                dt[p.vars*j + k] += eig_j * le;
+            }
+        }
+        for (uint i=0; i<m.cellsAreas.size(); ++i) {
+            for (uint k=0; k<p.vars; ++k) {
+                dt[p.vars*i + k] = cfl * m.cellsAreas[i] / dt[p.vars*i + k];
+            }
+        }
+    }
+}
+
+
 
 void gradient_for_diffusion(
     double* gradx, double* grady, 
@@ -223,7 +290,7 @@ void calc_limiters(
                     double delta_max = qmax[p.vars*id+k] - q[p.vars*id+k];
                     double delta_min = qmin[p.vars*id+k] - q[p.vars*id+k];
 
-                    const double Ka = solver::limiter_k_value * sqrt_area;
+                    const double Ka = p.limiter_k_value * sqrt_area;
                     const double K3a = Ka * Ka * Ka;
                     const double dMaxMin2 = (delta_max - delta_min)*(delta_max - delta_min); 
 
@@ -305,7 +372,7 @@ void calc_time_derivatives(
         double qi[p.vars];
         double qj[p.vars];
 
-        if (solver::linear_interpolate) {
+        if (p.do_linear_interpolate) {
             for (uint k=0; k<p.vars; ++k) {
                 const uint ki = p.vars*i+k;
                 const uint kj = p.vars*j+k;
@@ -323,13 +390,14 @@ void calc_time_derivatives(
         double gxv[p.vars];
         double gyv[p.vars];
 
-        if (solver::diffusive_gradients) {
+        if (p.do_diffusive_gradients) {
             gradient_for_diffusion(
                 gxv, gyv,
                 &gx[p.vars*i], &gy[p.vars*i],
                 &gx[p.vars*j], &gy[p.vars*j],
                 &q[p.vars*i], &q[p.vars*j],
-                ci, cj
+                ci, cj,
+                p
             );
         } else {
             for (uint k=0; k<p.vars; ++k) {
@@ -351,13 +419,15 @@ void calc_time_derivatives(
         }
     }
     // Compute time derivatives source terms
-    for (uint i=0; i<m.nRealCells; ++i) {
-        double source[p.vars];
+    if (p.do_source_term) {
+        for (uint i=0; i<m.nRealCells; ++i) {
+            double s[p.vars];
 
-        p.source(source, q[p.vars*i]);
+            p.source(s, &q[p.vars*i]);
 
-        for (uint k=0; k<p.vars; ++k) {
-            qt[p.vars*i+k] -= source[k];
+            for (uint k=0; k<p.vars; ++k) {
+                qt[p.vars*i+k] -= s[k];
+            }
         }
     }
     // if not a real cell, qt = 0
@@ -407,7 +477,7 @@ void update_bounds(
         const uint id_bound = m.edgesCells(e, 1);
 
         double q_int[p.vars];
-        if (solver::linear_interpolate) {
+        if (p.do_linear_interpolate) {
             double di[2];
             di[0] = m.edgesCentersX[e] - m.cellsCentersX[id_internal];
             di[1] = m.edgesCentersY[e] - m.cellsCentersY[id_internal];
@@ -659,22 +729,22 @@ void complete_calc_qt(
     physics& p
 ) {
     // Compute gradients
-    if (solver::do_calc_gradients) {
-        calc_gradients(gx, gy, q, m);
+    if (p.do_calc_gradients) {
+        calc_gradients(gx, gy, q, m, p);
         if (pool.size > 1) {
-            update_comms(gx, m);
-            update_comms(gy, m);
+            update_comms(gx, m, p);
+            update_comms(gy, m, p);
         }
     }
 
     // Compute limiters
-    if (solver::do_calc_limiters) {
-        calc_limiters(limiters, qmin, qmax, q, gx, gy, m);
-        if (pool.size > 1) update_comms(limiters, m);
+    if (p.do_calc_limiters) {
+        calc_limiters(limiters, qmin, qmax, q, gx, gy, m, p);
+        if (pool.size > 1) update_comms(limiters, m, p);
     }
 
     // Compute time derivative
-    calc_time_derivatives(qt, q, gx, gy, limiters, m);
+    calc_time_derivatives(qt, q, gx, gy, limiters, m, p);
 }
 
 
@@ -689,7 +759,7 @@ void run(
 ) {
 
     q.resize(p.vars*m.cellsAreas.size());
-    generate_initial_solution(q, m);
+    generate_initial_solution(q, m, p);
 
     std::vector<double> qk(q.size());
 
@@ -735,7 +805,7 @@ void run(
     uint time_step = 0;
 
     // Init the ghost cells with boundary conditions
-    update_bounds(q, gx, gy, limiters, m);
+    update_bounds(q, gx, gy, limiters, m, p);
 
     std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
     while (running) {
@@ -752,11 +822,11 @@ void run(
         }
 
         // Compute time step and update comms with dt
-        calc_dt(dt, q, m);
-        if (pool.size > 1) update_comms(dt, m);
-        if (solver::global_dt) {
-            min_dt(dt, m);
-            if (pool.size > 1) validate_dt(dt, pool);
+        calculate_dt(dt, q, m, p, opt.cfl);
+        if (pool.size > 1) update_comms(dt, m, p);
+        if (opt.global_dt) {
+            min_dt(dt, m, p);
+            if (pool.size > 1) validate_dt(dt, pool, p);
         }
         
         // Runge kutta iterations
@@ -765,18 +835,18 @@ void run(
         for (uint i=0; i<q.size(); ++i) qk[i] = q[i];
 
         for (const double& a : alpha) {
-            complete_calc_qt(qt, qk, gx, gy, qmin, qmax, limiters, m, pool);
-            if (solver::smooth_residuals) smooth_residuals(qt, q_smooth0, q_smooth1, m);
-            update_cells(qk, q, qt, dt, a);
-            update_bounds(qk, gx, gy, limiters, m);
-            if (pool.size > 1) update_comms(qk, m);
+            complete_calc_qt(qt, qk, gx, gy, qmin, qmax, limiters, m, pool,p);
+            if (p.do_smooth_residuals) smooth_residuals(qt, q_smooth0, q_smooth1, m, p);
+            update_cells(qk, q, qt, dt, a, p);
+            update_bounds(qk, gx, gy, limiters, m, p);
+            if (pool.size > 1) update_comms(qk, m, p);
         }
         // Get back qk values into q
         for (uint i=0; i<q.size(); ++i) q[i] = qk[i];
 
         // Compute residuals
         if (step == 0) {
-            calc_residuals(R0, qt, m, pool);
+            calc_residuals(R0, qt, m, pool, p);
             for (uint i=0; i<p.vars; ++i) {R[i] = R0[i];}
 
             if ((pool.rank == 0) & (opt.verbose)) {
@@ -793,7 +863,7 @@ void run(
             }
         } else if ((step % opt.print_interval == 0)|(opt.tolerance > 1.01e-16)) {
             
-            calc_residuals(R, qt, m, pool);
+            calc_residuals(R, qt, m, pool, p);
             for (uint i=0; i<p.vars; ++i) {R[i] = R[i]/R0[i];}
 
             if ((step % opt.print_interval == 0) & (opt.verbose) & (pool.rank == 0)) {
@@ -815,7 +885,7 @@ void run(
             if (time > save_time) {
                 // Save file to ./times/ folder
                 std::string timename = std::to_string(time_step);
-                writeVtk(name, q, m, pool.rank, pool.size, timename);
+                writeVtk(name, p, q, m, pool.rank, pool.size, timename);
                 save_time += opt.time_series_interval;
                 time_step += 1;
             }
