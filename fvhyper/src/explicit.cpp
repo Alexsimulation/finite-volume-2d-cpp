@@ -349,6 +349,16 @@ void calc_time_derivatives(
             qt[vars*j+k] += f[k] * le / m.cellsAreas[j];
         }
     }
+    if (solver::source_term) {
+        for (uint i=0; i<m.nRealCells; ++i) {
+
+            double source[vars];
+            calc_source(source, &q[vars*i], &gx[vars*i], &gy[vars*i]);
+            for (uint k=0; k<vars; ++k) {
+                qt[vars*i+k] += source[k] * m.cellsAreas[i];
+            }
+        }
+    }
     // if not a real cell, qt = 0
     for (uint i=0; i<m.cellsAreas.size(); ++i) {
         if (i >= m.nRealCells) {

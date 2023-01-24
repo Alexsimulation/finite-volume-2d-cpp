@@ -39,6 +39,7 @@ namespace solver {
     extern const bool global_dt;
     extern const bool smooth_residuals;
     extern const double limiter_k_value;
+    extern const bool source_term;
 }
 
 
@@ -75,6 +76,14 @@ void calc_flux(
     const double* gx,
     const double* gy,
     const double* n
+);
+
+
+void calc_source(
+    double* s,
+    const double* q,
+    const double* gx,
+    const double* gy
 );
 
 
