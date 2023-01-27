@@ -4,37 +4,40 @@
 #include <fvhyper/post.h>
 
 /*
-    Implementation of the flat plate laminar boundary layer using fvhyper
+    Implementation of the naca0012 in stall using fvhyper
+
+    Make the animation with paraview and ffmpeg
+    ffmpeg -r 24 -f image2 -i naca.%04d.png -crf 15 -pix_fmt yuv420p naca.mp4
 */
 namespace fvhyper {
 
 
     // Define global constants
-    const int vars = 5;
+    const int vars = 4;
     const std::vector<std::string> var_names = {
         "rho",
         "rhou",
         "rhov",
-        "rhoe",
-        "nu"
+        "rhoe"
     };
     namespace solver {
         const bool do_calc_gradients = true;
-        const bool do_calc_limiters = true;
-        const bool linear_interpolate = true;
+        const bool do_calc_limiters = false;
+        const bool linear_interpolate = false;
         const bool diffusive_gradients = true;
-        const bool global_dt = false;
+        const bool global_dt = true;
         const bool smooth_residuals = false;
         const bool source_term = false;
     }
 
     namespace consts {
         double gamma = 1.4;
-        double cfl = 2.0;
+        double cfl = 1.5;
         double mu = 2e-5;
         double pr = 0.72;
         double cp = 1;
         double r = 8.3145;
+        double mach = 0.8;
     }
 
     // Helper function for pressure calc
@@ -42,10 +45,10 @@ namespace fvhyper {
         return (consts::gamma - 1)*(q[3] - 0.5/q[0]*(q[1]*q[1] + q[2]*q[2]));
     }
     // Helper function for pressure gradient calc
-    void calc_grad_p(double* gp, const double* q, const double* gx, const double* gy) {
+    inline void calc_grad_p(double* gp, const double* q, const double* gx, const double* gy) {
         // p = (g-1)*rhoe - (g-1)*0.5/rho*(rhou*rhou + rhov*rhov))
         // p = (g-1)*rhoe - (g-1)*0.5*rhou*rhou/rho - (g-1)*0.5/rho*rhov*rhov
-        // dp = 0.5*(g-1)*(2*drhoe - rhou*rhou/rho - rhov*rhov/rho)
+        // dp = 0.5*(g-1)*( 2*drhoe - rhou*rhou/rho - rhov*rhov/rho)
         gp[0] = 2.*gx[3];
         gp[0] -= gx[1]*q[1]/q[0] + q[1]*(gx[1]*q[0] - gx[0]*q[1])/(q[0]*q[0]);
         gp[0] -= gx[2]*q[2]/q[0] + q[2]*(gx[2]*q[0] - gx[0]*q[2])/(q[0]*q[0]);
@@ -64,7 +67,7 @@ namespace fvhyper {
         return calc_p(q)/(q[0]*consts::r);
     }
     // Helper function for temperature gradient calc
-    void calc_grad_t(double* gt, const double* q, const double* gx, const double* gy) {
+    inline void calc_grad_t(double* gt, const double* q, const double* gx, const double* gy) {
         // t = (1/r) * p/rho
         // dt = (1/r)*( (dp*rho - drho*p)/(rho*rho) )
         double gp[2];
@@ -79,14 +82,14 @@ namespace fvhyper {
         );
     }
     // Compute gradient of velocity u
-    void calc_grad_u(double* gu, const double* q, const double* gx, const double* gy) {
+    inline void calc_grad_u(double* gu, const double* q, const double* gx, const double* gy) {
         // u = rhou/rho
         // du = (rho*drhou - rhou*drho)/(rho*rho)
         gu[0] = (q[0]*gx[1] - q[1]*gx[0])/(q[0]*q[0]);
         gu[1] = (q[0]*gy[1] - q[1]*gy[0])/(q[0]*q[0]);
     }
     // Compute gradient of velocity v
-    void calc_grad_v(double* gv, const double* q, const double* gx, const double* gy) {
+    inline void calc_grad_v(double* gv, const double* q, const double* gx, const double* gy) {
         // v = rhov/rho
         // dv = (rho*drhov - rhov*drho)/(rho*rho)
         gv[0] = (q[0]*gx[2] - q[2]*gx[0])/(q[0]*q[0]);
@@ -102,11 +105,10 @@ namespace fvhyper {
         const mesh& m
     ) {
         for (uint i=0; i<m.cellsAreas.size(); ++i) {
-            q[vars*i] = 1.4;
-            q[vars*i+1] = 1.4 * 0.2;
-            q[vars*i+2] = 1.4 * 0.;
-            q[vars*i+3] = 1.0/(consts::gamma-1) + 0.5*1.4*(0.2*0.2 + 0.0*0.0);
-            q[vars*i+4] = 1.0;
+            q[4*i] = 1.4;
+            q[4*i+1] = 1.4 * consts::mach;
+            q[4*i+2] = 1.4 * 0.;
+            q[4*i+3] = 1.0/(consts::gamma-1) + 0.5*1.4*(consts::mach*consts::mach + 0.0*0.0);
         }
     }
 
@@ -158,13 +160,11 @@ namespace fvhyper {
         f[1] = qi[1]*Vi + pi*n[0];
         f[2] = qi[2]*Vi + pi*n[1];
         f[3] = (qi[3] + pi)*Vi;
-        f[4] = qi[4]*Vi;
 
         f[0] += qj[0]*Vj;
         f[1] += qj[1]*Vj + pj*n[0];
         f[2] += qj[2]*Vj + pj*n[1];
         f[3] += (qj[3] + pj)*Vj;
-        f[4] += qj[4]*Vj;
 
         for (uint i=0; i<4; ++i) f[i] *= 0.5;
 
@@ -206,8 +206,7 @@ namespace fvhyper {
         f[1] -= 0.5*(kF1*(u-c*n[0]) + kF234_0*u      + kF234_1*(uR - uL - (VR-VL)*n[0])             + kF5*(u+c*n[0]));
         f[2] -= 0.5*(kF1*(v-c*n[1]) + kF234_0*v      + kF234_1*(vR - vL - (VR-VL)*n[1])             + kF5*(v+c*n[1]));
         f[3] -= 0.5*(kF1*(h-c*V)    + kF234_0*q2*0.5 + kF234_1*(u*(uR-uL) + v*(vR-vL) - V*(VR-VL))  + kF5*(h+c*V)); 
-        f[4] -= 0.5*abs(V+c)*(qj[4] - qi[4]);
-
+    
         // Gradients for viscous fluxes
         // Diffusion equation
 
@@ -240,7 +239,6 @@ namespace fvhyper {
         f[1] -= n[0]*tau_xx + n[1]*tau_xy;
         f[2] -= n[0]*tau_xy + n[1]*tau_yy;
         f[3] -= n[0]*phi[0] + n[1]*phi[1];
-        f[4] -= n[0]*(1);
     }
 
     /*
@@ -255,11 +253,11 @@ namespace fvhyper {
         double cfl = consts::cfl;
         const double C = 2;
 
-        // Set max dt
+        // Set dt scale
         for (uint i=0; i<dt.size(); ++i) {
-            dt[i] = 1.0;
+            dt[i] = 0.;
         }
-        // Calculate time step
+        // Calculate time step scale, store in dt
         for (uint e=0; e<m.edgesNodes.cols(); ++e) {
             double n[2];
 
@@ -277,20 +275,24 @@ namespace fvhyper {
             double ci = sqrt(calc_p(qi)*consts::gamma / qi[0]);
             double cj = sqrt(calc_p(qj)*consts::gamma / qj[0]);
 
-            double eig_ci = (ci + abs(n[0]*qi[1]/qi[0]) + abs(n[1]*qi[2]/qi[0]))*le;
-            double eig_cj = (cj + abs(n[0]*qj[1]/qj[0]) + abs(n[1]*qj[2]/qj[0]))*le;
+            double eig_ci = ci + abs(qi[1]/qi[0]*n[0] + qi[2]/qi[0]*n[1]);
+            double eig_cj = cj + abs(qj[1]/qj[0]*n[0] + qj[2]/qj[0]*n[1]);
 
             double eig_vi = std::max(4./(3.*qi[0]), consts::gamma/qi[0])
                             * (consts::mu/consts::pr) * le*le / m.cellsAreas[i];
             double eig_vj = std::max(4./(3.*qj[0]), consts::gamma/qj[0])
                             * (consts::mu/consts::pr) * le*le / m.cellsAreas[j];
 
-            double dt_i = cfl * m.cellsAreas[i] / (eig_ci + C*eig_vi);
-            double dt_j = cfl * m.cellsAreas[j] / (eig_cj + C*eig_vj);
+            double center_eig = std::max(eig_ci + C*eig_vi, eig_cj + C*eig_vj);
 
             for (uint k=0; k<vars; ++k) {
-                dt[vars*i + k] = std::min(dt[vars*i + k], dt_i);
-                dt[vars*j + k] = std::min(dt[vars*j + k], dt_j);
+                dt[vars*i + k] += center_eig * le;
+                dt[vars*j + k] += center_eig * le;
+            }
+        }
+        for (uint i=0; i<m.cellsAreas.size(); ++i) {
+            for (uint k=0; k<vars; ++k) {
+                dt[vars*i + k] = cfl * m.cellsAreas[i] / dt[vars*i + k];
             }
         }
     }
@@ -307,7 +309,7 @@ namespace fvhyper {
             double b_pressure = 1.0;
             double bv[4];
             bv[0] = 1.4;
-            bv[1] = bv[0] * 0.2;
+            bv[1] = bv[0] * consts::mach;
             bv[2] = bv[0] * 0.0;
             bv[3] = b_pressure / (consts::gamma - 1) + 0.5/bv[0]*(bv[1]*bv[1] + bv[2]*bv[2]);
 
@@ -385,11 +387,8 @@ namespace fvhyper {
         }
         std::map<std::string, void (*)(double*, double*, double*)> 
         bounds = {
-            {"top", farfield},
-            {"bot0", slip_wall},
-            {"bot1", wall},
-            {"left", farfield},
-            {"right", farfield}
+            {"wall", wall},
+            {"farfield", farfield}
         };
     }
 
@@ -409,15 +408,24 @@ namespace fvhyper {
             p[0] = calc_p(q);
         }
 
+        void calc_output_mach(double* m, double* q) {
+            // Compute pressure p
+            double p = calc_p(q);
+            double c = sqrt(consts::gamma * p/q[0]);
+            double unorm = sqrt(q[1]*q[1] + q[2]*q[2])/q[0];
+            m[0] = unorm / c;
+        }
+
         std::map<std::string, void (*)(double*, double*)> 
-        extra_scalars = {
-            {"p", calc_output_p}
-        };
+            extra_scalars = {
+                {"p", calc_output_p},
+                {"mach", calc_output_mach}
+            };
         
         std::map<std::string, void (*)(double*, double*)> 
-        extra_vectors = {
-            {"U", calc_output_u}
-        };
+            extra_vectors = {
+                {"U", calc_output_u}
+            };
     }
 
 
@@ -440,22 +448,30 @@ int main() {
         per example, for 3 mpi ranks, we would have the files:
             name_1.msh  name_2.msh  name_3.msh
     */
-    std::string name = "square";
+    std::string name = "naca0012";
 
     // Read the file
+    m.do_compute_wall_dist = true;
     m.read_file(name, pool);
 
     fvhyper::solverOptions options;
-    options.max_step = 30000;
-    options.print_interval = 20;
+    options.max_step = 15;
+    options.print_interval = 10;
     options.tolerance = 1e-20;
+    options.save_time_series = true;
+    options.time_series_interval = 0.1;
 
     // Run solver
     std::vector<double> q;
     fvhyper::run(name, q, pool, m, options);
 
+    for (uint i=0; i<m.cellsAreas.size(); ++i) {
+        q[fvhyper::vars*i] = m.wall_dist[i];
+    }
+
     // Save file
     fvhyper::writeVtk(name, q, m, pool.rank, pool.size);
+    std::cout << "Got here" << std::endl;
 
     return pool.exit();
 }

@@ -138,6 +138,8 @@ public:
 
     std::string filename;
 
+    bool do_compute_wall_dist = false;
+
     std::map<std::string, std::string> meshFormat;
 
     std::map<uint, std::string> physicalNames;
@@ -178,6 +180,8 @@ public:
     std::vector<uint> ghostCellsCurrentIndices;
     std::vector<uint> ghostCellsOwners;
 
+    std::vector<double> wall_dist;
+
     uint nRealCells;
 
     std::vector<mpi_comm_cells> comms;
@@ -201,6 +205,8 @@ public:
     void convert_node_face_info();
     void compute_mesh();
     void add_cell_edges(uint cell_id);
+
+    void compute_wall_dist(mpi_wrapper& pool);
 
     void send_mesh_info();
 };

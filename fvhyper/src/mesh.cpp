@@ -800,6 +800,114 @@ void mesh::make_comms(uint rank) {
 
 
 
+void mesh::compute_wall_dist(mpi_wrapper& pool) {
+
+    // Do an MPI_Allgather to send to everyone all the ranks
+    // First, do an mpi_allreduce to send to everyone the total number of cells
+    uint n_own_wall_cells = 0;
+    std::string wall_tag = "wall";
+    for (uint i=0; i<boundaryEdgesIntTag.size(); ++i) {
+        std::string pnamei = physicalNames.at(boundaryEdgesIntTag[i]);
+        if (pnamei.find(wall_tag) != std::string::npos) {
+            n_own_wall_cells += 1;
+        }
+    }
+    
+    uint n_total_wall_cells;
+    MPI_Allreduce(
+        &n_own_wall_cells,
+        &n_total_wall_cells,
+        1,
+        MPI_UNSIGNED,
+        MPI_SUM,
+        MPI_COMM_WORLD
+    );
+    // Now that we have the total number of boundary cells, do an mpi_all_gather to get the x and y centers of all of these cells
+    std::vector<double> wallx_s(n_own_wall_cells);
+    std::vector<double> wally_s(n_own_wall_cells);
+    {uint k = 0;
+    for (uint i=0; i<boundaryEdgesIntTag.size(); ++i) {
+        std::string pnamei = physicalNames.at(boundaryEdgesIntTag[i]);
+        if (pnamei.find(wall_tag) != std::string::npos) {
+            uint e = boundaryEdges[i];
+            wallx_s[k] = edgesCentersX[e];
+            wally_s[k] = edgesCentersY[e];
+            k += 1;
+        }
+    }}
+
+    // Get pool counts
+    std::vector<int> counts_recv(pool.size);
+    int n_own_wall_cells_int = n_own_wall_cells;
+    MPI_Allgather(
+        &n_own_wall_cells_int,
+        1,
+        MPI_INT,
+        &counts_recv[0],
+        1,
+        MPI_INT,
+        MPI_COMM_WORLD
+    );
+    
+    // Compute buffer displacements
+    std::vector<int> displacements(pool.size);
+    displacements[0] = 0;
+    for (uint i=1; i<pool.size; ++i) {
+        displacements[i] = displacements[i-1] + counts_recv[i-1];
+    }
+
+    std::vector<double> wallx(n_total_wall_cells);
+    std::vector<double> wally(n_total_wall_cells);
+
+    MPI_Allgatherv(
+        &wallx_s[0],
+        wallx_s.size(),
+        MPI_DOUBLE,
+        &wallx[0],
+        &counts_recv[0],
+        &displacements[0],
+        MPI_DOUBLE,
+        MPI_COMM_WORLD
+    );
+    MPI_Allgatherv(
+        &wally_s[0],
+        wally_s.size(),
+        MPI_DOUBLE,
+        &wally[0],
+        &counts_recv[0],
+        &displacements[0],
+        MPI_DOUBLE,
+        MPI_COMM_WORLD
+    );
+
+
+    // Compute the distance to the wall
+    wall_dist.resize(cellsAreas.size());
+    for (uint i=0; i<cellsAreas.size(); ++i) {
+        double& cx = cellsCentersX[i];
+        double& cy = cellsCentersY[i];
+
+        double mind = 1;
+        // Loop over all boundary cells
+        for (uint j=0; j<wallx.size(); ++j) {
+            double& wx = wallx[j];
+            double& wy = wally[j];
+            
+            double dx = cx - wx;
+            double dy = cy - wy;
+            double d = sqrt(dx*dx + dy*dy);
+            if (j == 0) {
+                mind = d;
+            } else {
+                mind = std::min(mind, d);
+            }
+        }
+        wall_dist[i] = mind;
+    }
+}
+
+
+
 void mesh::read_file(std::string name, mpi_wrapper& pool) {
     uint rank = pool.rank;
 
@@ -851,6 +959,14 @@ void mesh::read_file(std::string name, mpi_wrapper& pool) {
 
     // Add boundary cells
     add_boundary_cells();
+
+    // Compute wall distance
+    if (do_compute_wall_dist) {
+        compute_wall_dist(pool);
+    } else {
+        wall_dist.resize(cellsAreas.size());
+        for (auto& i : wall_dist) i = 0;
+    }
 
 }
 
