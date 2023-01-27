@@ -42,7 +42,7 @@ void physics::flux(
 ) {}
 
 void physics::boundary(
-    std::string& name,
+    uint& id,
     double* b,
     double* q,
     double* n

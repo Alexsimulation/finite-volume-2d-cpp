@@ -17,9 +17,29 @@
 
 #include <vector>
 #include <string>
+#include <fvhyper/parallel.h>
+#include <fvhyper/mesh.h>
 
 
 namespace fvhyper {
+
+
+class solution {
+public:
+    std::vector<double> q;
+    std::vector<double> gx;
+    std::vector<double> gy;
+
+    std::vector<double> qmin;
+    std::vector<double> qmax;
+    std::vector<double> l;
+
+    std::vector<double> dt;
+
+    std::vector<double> qk;
+
+    std::vector<mpi_comm_cells> comms;
+};
 
 
 /*
@@ -49,8 +69,15 @@ public:
     bool fixed_dt = false;
     double dt = -1;   // fixed dt value. for a variable dt, keep fixed_dt < 0
 
+    // The container for the solution variables
+    solution s;
 
-    physics(const int& n) : vars(n) {}
+    mesh m;
+
+
+    physics(const int& n) : vars(n) {
+
+    }
 
     void set_names(std::vector<std::string> names);
 
@@ -71,7 +98,7 @@ public:
     );
 
     virtual void boundary(
-        std::string& name,
+        uint& id,
         double* b,
         double* q,
         double* n

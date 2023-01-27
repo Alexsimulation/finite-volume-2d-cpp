@@ -661,7 +661,7 @@ void mesh::add_boundary_cells() {
         // Add edge index to boundary edges
         boundaryEdges.push_back(e);
         
-        boundaryNames.push_back(physicalNames.at(boundaryEdgesIntTag[i]));
+        boundaryNames.push_back(std::stoi( physicalNames.at(boundaryEdgesIntTag[i])) );
     }
 }
 
@@ -669,6 +669,7 @@ void mesh::add_boundary_cells() {
 
 void mesh::make_comms(uint rank, physics& p) {
     // Make communicators
+    auto& comms = p.comms;
 
     // Compute all ranks of connected nodes
     std::vector<uint> connected_nodes;

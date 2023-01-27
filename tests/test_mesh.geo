@@ -12,8 +12,8 @@ Circle (1) = {1, 1, 0, 1, 0, 2*Pi};
 Curve Loop (1) = {1};
 Plane Surface (1) = {1};
 
-Physical Curve("wall") = {1};
-Physical Surface("internal") = {1};
+Physical Curve("0") = {1};
+Physical Surface("0") = {1};
 
 // Mesh the surface
 Mesh 2;

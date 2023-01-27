@@ -16,6 +16,7 @@
 #pragma once
 
 #include <mpi.h>
+#include <vector>
 
 
 namespace fvhyper {
@@ -30,6 +31,21 @@ public:
     mpi_wrapper();
 
     int exit();
+};
+
+
+class mpi_comm_cells {
+public:
+    std::vector<uint> snd_indices;
+    std::vector<uint> rec_indices;
+    std::vector<double> snd_q;
+    std::vector<double> rec_q;
+
+    uint own_rank;
+    uint out_rank;
+
+    uint start_index;
+    uint length;
 };
 
 

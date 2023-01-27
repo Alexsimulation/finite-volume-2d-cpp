@@ -24,7 +24,6 @@
 #include <iostream>
 #include <algorithm>
 #include <fvhyper/parallel.h>
-#include <fvhyper/physics.h>
 
 
 namespace fvhyper {
@@ -42,21 +41,6 @@ void move_to_end(std::vector<T>& v, const uint& i) {
     // Move element i in vector to the end
     std::rotate(v.begin() + i,  v.begin() + i + 1, v.end());
 }
-
-
-class mpi_comm_cells {
-public:
-    std::vector<uint> snd_indices;
-    std::vector<uint> rec_indices;
-    std::vector<double> snd_q;
-    std::vector<double> rec_q;
-
-    uint own_rank;
-    uint out_rank;
-
-    uint start_index;
-    uint length;
-};
 
 
 template<uint N>
@@ -158,7 +142,7 @@ public:
     std::vector<uint> boundaryEdges0;
     std::vector<uint> boundaryEdges1;
     std::vector<uint> boundaryEdgesIntTag;
-    std::vector<std::string> boundaryNames;
+    std::vector<uint> boundaryNames;
 
     std::map<std::tuple<uint, uint>, uint> edgesRef;
 
@@ -177,8 +161,6 @@ public:
     std::vector<uint> ghostCellsOwners;
 
     uint nRealCells;
-
-    std::vector<mpi_comm_cells> comms;
 
     void read_entities();
     void read_nodes();

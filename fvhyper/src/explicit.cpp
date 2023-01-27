@@ -426,7 +426,7 @@ void calc_time_derivatives(
             p.source(s, &q[p.vars*i]);
 
             for (uint k=0; k<p.vars; ++k) {
-                qt[p.vars*i+k] -= s[k];
+                qt[p.vars*i+k] += s[k];
             }
         }
     }
@@ -507,9 +507,9 @@ void update_comms(
     physics& p
 ) {
 
-    std::vector<MPI_Request> reqs(m.comms.size());
+    std::vector<MPI_Request> reqs(p.comms.size());
     uint k = 0;
-    for (auto& comm : m.comms) {
+    for (auto& comm : p.comms) {
 
         uint iter = 0;
         for (const auto& i : comm.snd_indices) {
@@ -533,7 +533,7 @@ void update_comms(
     }
 
     // Recieve values from all communicating cells
-    for (auto& comm : m.comms) {
+    for (auto& comm : p.comms) {
         // Recieve values
         MPI_Recv(
         /* data         = */ &comm.rec_q[0], 
