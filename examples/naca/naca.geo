@@ -1,7 +1,7 @@
 
 /*
     first convert with:
-        gmsh naca0012_129.msh -o naca.msh -save
+        gmsh naca0012.msh -o naca.msh -save
     Then partition:
         gmsh naca.msh naca.geo -setnumber n 6 -parse_and_exit
 */
@@ -19,7 +19,7 @@ Mesh.PartitionCreatePhysicals = 0;
 // Should we save one mesh file per partition?
 Mesh.PartitionSplitMeshFiles = 1;
 
-//PartitionMesh n;
+PartitionMesh n;
 
 Save "naca.msh";
 

@@ -4,12 +4,12 @@
 
 lc = 0.05;
 
-Point (1) = {-0.1, 0, 0, lc};
+Point (1) = {-0.3, 0, 0, lc};
 Point (2) = {0, 0, 0, lc};
-Point (3) = {1, 0, 0, lc};
-Point (4) = {1, 0.2, 0, lc};
-Point (5) = {0, 0.2, 0, lc};
-Point (6) = {-0.1, 0.2, 0, lc};
+Point (3) = {2, 0, 0, lc};
+Point (4) = {2, 0.4, 0, lc};
+Point (5) = {0, 0.4, 0, lc};
+Point (6) = {-0.3, 0.4, 0, lc};
 
 Line (1) = {1, 2};
 Line (2) = {2, 5};
@@ -27,14 +27,14 @@ Plane Surface (2) = {2};
 
 Physical Curve("top") = {3, 7};
 Physical Curve("bot0") = {1};
-Physical Curve("bot1") = {5};
+Physical Curve("wall") = {5};
 Physical Curve("left") = {4};
 Physical Curve("right") = {6};
 Physical Surface("internal") = {1, 2};
 
-Transfinite Curve {5, -7} = 90 Using Progression 1.1;
-Transfinite Curve {-1, 3} = 30 Using Progression 1.2;
-Transfinite Curve {2, -4, 6} = 110 Using Progression 1.1;
+Transfinite Curve {5, -7} = 50 Using Progression 1.2;
+Transfinite Curve {-1, 3} = 25 Using Progression 1.4;
+Transfinite Curve {2, -4, 6} = 50 Using Progression 1.2;
 
 Transfinite Surface {1};
 Transfinite Surface {2};

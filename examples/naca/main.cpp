@@ -18,6 +18,9 @@ namespace fvhyper {
         "rhov",
         "rhoe"
     };
+    const std::vector<double> vars_limiters = {
+        1., 1., 1., 1.
+    };
     namespace solver {
         const bool do_calc_gradients = true;
         const bool do_calc_limiters = true;
@@ -25,11 +28,12 @@ namespace fvhyper {
         const bool diffusive_gradients = false;
         const bool global_dt = false;
         const bool smooth_residuals = false;
+        const bool source_term = false;
     }
 
     namespace consts {
         double gamma = 1.4;
-        double cfl = 1.0;
+        double cfl = 1.5;
     }
 
     // Helper function for pressure calc
@@ -46,8 +50,8 @@ namespace fvhyper {
     ) {
         for (uint i=0; i<m.cellsAreas.size(); ++i) {
             v[4*i] = 1.4;
-            v[4*i+1] = 1.4 * 0.8;
-            v[4*i+2] = 1.4 * 0.0175;
+            v[4*i+1] = 1.4 * 0.5;
+            v[4*i+2] = 1.4 * 0.01091;
             v[4*i+3] = 1.0/(consts::gamma-1) + 0.5*1.4*(0.8*0.8 + 0.0175*0.0175);
         }
     }
@@ -62,6 +66,19 @@ namespace fvhyper {
             const double b = -3.0/2.0*a*yt - 0.5/yt;
             return a*y*y*y + b*y*y + y;
         }
+    }
+
+    /*
+        Define source function
+    */
+    void calc_source(
+        double* s,
+        const double* q,
+        const double* gx,
+        const double* gy,
+        const double& wall_dist
+    ) {
+
     }
 
     /*
@@ -142,6 +159,8 @@ namespace fvhyper {
     void calc_dt(
         std::vector<double>& dt,
         const std::vector<double>& q,
+        const std::vector<double>& gx,
+        const std::vector<double>& gy,
         mesh& m
     ) {
 
@@ -194,8 +213,8 @@ namespace fvhyper {
             double b_pressure = 1.0;
             double bv[4];
             bv[0] = 1.4;
-            bv[1] = bv[0] * 0.8;
-            bv[2] = bv[0] * 0.0175;
+            bv[1] = bv[0] * 0.5;
+            bv[2] = bv[0] * 0.01091;
             bv[3] = b_pressure / (consts::gamma - 1) + 0.5/bv[0]*(bv[1]*bv[1] + bv[2]*bv[2]);
 
             double U[2];
@@ -327,7 +346,7 @@ int main() {
     m.read_file(name, pool);
 
     fvhyper::solverOptions options;
-    options.max_step = 10000;
+    options.max_step = 30000;
     options.print_interval = 10;
     options.tolerance = 1e-6;
 

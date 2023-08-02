@@ -307,10 +307,12 @@ void mesh::read_entities() {
                 // Reading points
             } else if (nss <= entitiesNumber["curves"]) {
                 // Reading curves
-                auto l = str_to_ints(line);
-                entityTagToPhysicalTag[l[0]] = l[8];
             } else if (nss <= entitiesNumber["surfaces"]) {
                 // Reading surfaces
+                auto l = str_to_ints(line);
+                entityTagToPhysicalTag[l[0]] = l[8];
+            } else if (nss <= entitiesNumber["volumes"]) {
+                // Reading volumes
                 auto l = str_to_ints(line);
             }
         } else if (currentSection == "PartitionedEntities") {
@@ -331,12 +333,12 @@ void mesh::read_entities() {
                 // Reading points
             } else if (nss <= entitiesNumber["curves"]) {
                 // Reading curves
+            } else if (nss <= entitiesNumber["surfaces"]) {
+                // Reading surfaces
                 auto l = str_to_ints(line);
                 if (l[1] == 1) 
                     entityTagToPhysicalTag[l[0]] =
                         entityTagToPhysicalTag.at(l[2]);
-            } else if (nss <= entitiesNumber["surfaces"]) {
-                // Reading surfaces
             }
         } else if (currentSection == "Nodes") {
             // Do not read nodes, break
@@ -399,6 +401,7 @@ void mesh::read_nodes() {
                 originalNodesRef[tag_i] = nodesX.size();
                 nodesX.push_back(l[0]);
                 nodesY.push_back(l[1]);
+                nodesZ.push_back(l[2]);
             }
         } else if (currentSection == "Elements") {
             break;
@@ -430,6 +433,8 @@ void mesh::read_boundaries() {
     uint blockDimension = 0;
     uint blockPhysicalTag;
 
+    uint block_element_type;
+
     std::string currentSection = "";
 
     while (std::getline(infile, line)) {
@@ -451,26 +456,24 @@ void mesh::read_boundaries() {
                 auto l = str_to_ints(line);
                 blockDimension = l[0];
 
-                if (blockDimension == 1) {
+                if (blockDimension == 2) {
                     blockPhysicalTag = entityTagToPhysicalTag.at(l[1]);
                 }
+                block_element_type = l[2];
                 n_in_block = l[3];
                 start_offset = ns;
                 nss = 0;
-            } else if (blockDimension == 1) {
+            } else if (blockDimension == 2) {
                 // Read current tag
                 auto li = str_to_ints(line);
                 uint tag_i = li[0] - 1;
                 std::vector<uint> l(li.size()-1);
                 for (uint i=1; i<li.size(); ++i) {
-                    l[i-1] = li[i] - 1;
+                    l[i-1] = originalNodesRef.at(li[i] - 1);
                 }
-                if (l.size() == 2) {
-                    // Boundary edge
-                    boundaryEdges0.push_back(originalNodesRef.at(l[0]));
-                    boundaryEdges1.push_back(originalNodesRef.at(l[1]));
-                    boundaryEdgesIntTag.push_back(blockPhysicalTag);
-                }
+                // Boundary edge
+                boundaryFacesTupleForm.push_back(l);
+                boundaryEdgesIntTag.push_back(blockPhysicalTag);
             }
         }
 

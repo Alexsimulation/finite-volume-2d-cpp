@@ -1,0 +1,26 @@
+<VTKFile type="PUnstructuredGrid" version="0.1" byte_order="BigEndian">
+<PUnstructuredGrid GhostLevel="1">
+  <PPoints>
+    <PDataArray type="Float32" NumberOfComponents="3"/>
+  </PPoints>
+  <PCells>
+    <PDataArray type="Int32" Name="connectivity"/>
+    <PDataArray type="Int32" Name="offsets"/>
+    <PDataArray type="Int32" Name="types"/>
+  </PCells>
+  <PCellData Scalars="scalars">
+    <PDataArray type="Float32" Name="rank"/>
+    <PDataArray type="Float32" Name="rho"/>
+    <PDataArray type="Float32" Name="rhou"/>
+    <PDataArray type="Float32" Name="rhov"/>
+    <PDataArray type="Float32" Name="rhoe"/>
+    <PDataArray type="Float32" Name="mach"/>
+    <PDataArray type="Float32" Name="p"/>
+    <PDataArray type="Float32" Name="U" NumberOfComponents="3"/>
+  </PCellData>
+  <Piece Source="naca0012_0.vtu"/>
+  <Piece Source="naca0012_1.vtu"/>
+  <Piece Source="naca0012_2.vtu"/>
+  <Piece Source="naca0012_3.vtu"/>
+</PUnstructuredGrid>
+</VTKFile>

@@ -138,7 +138,7 @@ public:
 
     std::string filename;
 
-    bool do_compute_wall_dist = false;
+    bool do_compute_wall_dist = true;
 
     std::map<std::string, std::string> meshFormat;
 
@@ -148,29 +148,33 @@ public:
 
     std::vector<double> nodesX;
     std::vector<double> nodesY;
+    std::vector<double> nodesZ;
     std::map<uint, uint> originalNodesRef;
 
-    meshArray<2> edgesNodes;
-    meshArray<2> edgesCells;
-    std::vector<double> edgesLengths;
-    std::vector<double> edgesNormalsX;
-    std::vector<double> edgesNormalsY;
-    std::vector<double> edgesCentersX;
-    std::vector<double> edgesCentersY;
+    meshArray<4> facesNodes;
+    meshArray<2> facesCells;
+    std::vector<uint> facesTypes;
+    std::vector<double> facesAreas;
+    std::vector<double> facesNormalsX;
+    std::vector<double> facesNormalsY;
+    std::vector<double> facesNormalsZ;
+    std::vector<double> facesCentersX;
+    std::vector<double> facesCentersY;
+    std::vector<double> facesCentersZ;
 
-    std::vector<uint> boundaryEdges;
-    std::vector<uint> boundaryEdges0;
-    std::vector<uint> boundaryEdges1;
-    std::vector<uint> boundaryEdgesIntTag;
+    std::vector<uint> boundaryFaces;
+    std::vector<std::vector<uint>> boundaryFacesTupleForm;
+    std::vector<uint> boundaryFacesIntTag;
     std::vector<void (*)(double*, double*, double*)> boundaryFuncs;
 
-    std::map<std::tuple<uint, uint>, uint> edgesRef;
+    std::map<std::tuple<uint, uint, uint, uint>, uint> FacesRef;
 
-    meshArray<4> cellsNodes;
-    std::vector<bool> cellsIsTriangle;
-    std::vector<double> cellsAreas;
+    meshArray<8> cellsNodes;
+    std::vector<uint> cellsTypes;
+    std::vector<double> cellsVolumes;
     std::vector<double> cellsCentersX;
     std::vector<double> cellsCentersY;
+    std::vector<double> cellsCentersZ;
     std::vector<bool> cellsIsGhost;
 
     std::map<uint, uint> originalToCurrentCells;    // maps original index -> current index

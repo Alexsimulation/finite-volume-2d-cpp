@@ -125,7 +125,7 @@ namespace fvhyper {
     }
 
     /*
-        Define source function for the ns-sa model
+        Define source function
     */
     void calc_source(
         double* s,

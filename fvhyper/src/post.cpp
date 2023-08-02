@@ -16,7 +16,18 @@
 #include <fstream>
 #include <fvhyper/post.h>
 
+#include <iomanip>
+#include <sstream>
+
 namespace fvhyper {
+
+
+std::string double2string(const double& x, const int precision) {
+    std::stringstream stream;
+    stream << std::fixed << std::setprecision(precision) << x;
+    return stream.str();
+}
+
 
 void writeVtk(
     const std::string name,
@@ -66,6 +77,9 @@ void writeVtk(
             for (auto& keyval : post::extra_vectors) {
                 core += "    <PDataArray type=\"Float32\" Name=\"" + keyval.first + "\" NumberOfComponents=\"3\"/>\n";
             }
+        }
+        if (m.do_compute_wall_dist) {
+            core += "    <PDataArray type=\"Float32\" Name=\"Wall Distance\"/>\n";
         }
         core += "  </PCellData>\n";
         for (uint i=0; i<world_size; ++i) {
@@ -154,11 +168,20 @@ void writeVtk(
     }
     s += "        </DataArray>\n";
 
+    // Save wall distance
+    if (m.do_compute_wall_dist) {
+        s += "        <DataArray type=\"Float32\" Name=\"Wall Distance\" Format=\"ascii\">\n";
+        for (int j=0; j<m.nRealCells; ++j) {
+            s += "          " + double2string(m.wall_dist[j], 16) + "\n";
+        }
+        s += "        </DataArray>\n";
+    }
+
     // Save variables
     for (uint i=0; i<var_names.size(); ++i) {
         s += "        <DataArray type=\"Float32\" Name=\"" + var_names[i] + "\" Format=\"ascii\">\n";
         for (int j=0; j<m.nRealCells; ++j) {
-            s += "          " + std::to_string(q[var_names.size()*j + i]) + "\n";
+            s += "          " + double2string(q[var_names.size()*j + i], 16) + "\n";
         }
         s += "        </DataArray>\n";
     }
@@ -167,7 +190,7 @@ void writeVtk(
         for (int j=0; j<m.nRealCells; ++j) {
             double scal_i[1];
             keyval.second(scal_i, &q[var_names.size()*j]);
-            s += "          " + std::to_string(scal_i[0]) + "\n";
+            s += "          " + double2string(scal_i[0], 16) + "\n";
         }
         s += "        </DataArray>\n";
     }
@@ -179,8 +202,8 @@ void writeVtk(
             for (int j=0; j<m.nRealCells; ++j) {
                 double vec_i[2];
                 keyval.second(vec_i, &q[var_names.size()*j]);
-                s += "          " + std::to_string(vec_i[0]) + " ";
-                s += std::to_string(vec_i[1]) + " 0.0\n";
+                s += "          " + double2string(vec_i[0], 16) + " ";
+                s += double2string(vec_i[1], 16) + " 0.0\n";
             }
             s += "        </DataArray>\n";
         }

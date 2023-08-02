@@ -30,6 +30,7 @@ namespace fvhyper {
 
 extern const int vars;
 extern const std::vector<std::string> var_names;
+extern const std::vector<double> vars_limiters;
 
 namespace solver {
     extern const bool do_calc_gradients;
@@ -83,13 +84,16 @@ void calc_source(
     double* s,
     const double* q,
     const double* gx,
-    const double* gy
+    const double* gy,
+    const double& wall_dist
 );
 
 
 void calc_dt(
     std::vector<double>& dt,
     const std::vector<double>& q,
+    const std::vector<double>& gx,
+    const std::vector<double>& gy,
     mesh& m
 );
 

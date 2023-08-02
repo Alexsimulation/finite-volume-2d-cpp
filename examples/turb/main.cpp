@@ -16,7 +16,10 @@ namespace fvhyper {
         "rhou",
         "rhov",
         "rhoe",
-        "nu"
+        "nu_scaled"
+    };
+    const std::vector<double> vars_limiters = {
+        1., 1., 1., 1., 0.
     };
     namespace solver {
         const bool do_calc_gradients = true;
@@ -25,16 +28,20 @@ namespace fvhyper {
         const bool diffusive_gradients = true;
         const bool global_dt = false;
         const bool smooth_residuals = false;
-        const bool source_term = false;
+        const bool source_term = true;
     }
 
     namespace consts {
         double gamma = 1.4;
         double cfl = 2.0;
-        double mu = 2e-5;
+        double mu = 2.8e-7;
         double pr = 0.72;
         double cp = 1;
         double r = 8.3145;
+
+        double pr_T = 0.9;
+
+        double nu_scale = 1e-6;
     }
 
     // Helper function for pressure calc
@@ -106,7 +113,7 @@ namespace fvhyper {
             q[vars*i+1] = 1.4 * 0.2;
             q[vars*i+2] = 1.4 * 0.;
             q[vars*i+3] = 1.0/(consts::gamma-1) + 0.5*1.4*(0.2*0.2 + 0.0*0.0);
-            q[vars*i+4] = 1.0;
+            q[vars*i+4] = (consts::mu / 1.4) * 0.1 / consts::nu_scale;
         }
     }
 
@@ -129,9 +136,75 @@ namespace fvhyper {
         double* s,
         const double* q,
         const double* gx,
-        const double* gy
+        const double* gy,
+        const double& wall_dist
     ) {
 
+        // Turbulence source term
+        double gradu[2];
+        double gradv[2];
+        calc_grad_u(gradu, q, gx, gy);
+        calc_grad_v(gradv, q, gx, gy);
+
+        // Model constants
+        const double Cb1 = 0.1355;
+        const double Cb2 = 0.622;
+        const double Cv1 = 7.1;
+        const double Cv2 = 5;
+        const double sigma = 2./3.;
+        const double kappa = 0.41;
+        const double Cw1 = Cb1/(kappa*kappa) + (1. + Cb2)/sigma;
+        const double Cw2 = 0.3;
+        const double Cw3 = 2;
+        const double Ct1 = 1;
+        const double Ct2 = 2;
+        const double Ct3 = 1.3;
+        const double Ct4 = 0.5;
+
+        // Velocity gradient tensor
+        const double S_xx = 0.5*(gradu[0] + gradu[0]);
+        const double S_xy = 0.5*(gradu[1] + gradv[0]);
+        const double S_yy = 0.5*(gradv[1] + gradv[1]);
+
+        const double O_xx = 0.5*(gradu[0] - gradu[0]);
+        const double O_xy = 0.5*(gradu[1] - gradv[0]);
+        const double O_yy = 0.5*(gradv[1] - gradv[1]);
+
+        // Other terms
+        const double nu_L = consts::mu / q[0];
+        const double nu_tilda = q[4] * consts::nu_scale;
+
+        const double X = nu_tilda / nu_L;
+        const double X3 = X*X*X;
+
+        const double fv1 = (X3)/(X3 + Cv1*Cv1*Cv1);
+        
+        double fv2 = 1 + X/Cv2;
+        fv2 = 1/(fv2*fv2*fv2);
+
+        const double fv3 = (1 + X*fv1)*(1 - fv2)/std::max(X, 0.001);
+
+        double S_tilda = fv3*sqrt(2*O_xy*O_xy) + nu_tilda/(kappa*kappa * wall_dist*wall_dist) * fv2;
+
+        const double Cw3_6 = Cw3*Cw3*Cw3 * Cw3*Cw3*Cw3;
+        const double r = nu_tilda/(S_tilda*kappa*kappa*wall_dist*wall_dist);
+        const double g = r + Cw2*(r*r*r*r*r*r - r);
+        double fw = (1 + Cw3_6)/(g*g*g * g*g*g + Cw3_6);
+        fw = g * std::pow(fw, 1./6.);
+
+        const double ft2 = Ct3*std::exp(-Ct4*X*X);
+        
+        // Source terms
+        const double term_0 = Cb1*(1 - ft2)*S_tilda*nu_tilda;
+        const double term_1 = Cb2/sigma*(gx[4]*gx[4] + gy[4]*gy[4])*consts::nu_scale*consts::nu_scale;
+        const double term_2 = -(Cw1*fw - Cb1/(kappa*kappa)*ft2)*(nu_tilda*nu_tilda/(wall_dist*wall_dist));
+        // Ignore production from the trip point
+
+        s[0] = 0;
+        s[1] = 0;
+        s[2] = 0;
+        s[3] = 0;
+        s[4] = (term_0 + term_1 + term_2)/consts::nu_scale;
     }
 
     /*
@@ -166,7 +239,7 @@ namespace fvhyper {
         f[3] += (qj[3] + pj)*Vj;
         f[4] += qj[4]*Vj;
 
-        for (uint i=0; i<4; ++i) f[i] *= 0.5;
+        for (uint i=0; i<vars; ++i) f[i] *= 0.5;
 
         // Upwind flux
         const double pL = pi;
@@ -206,7 +279,7 @@ namespace fvhyper {
         f[1] -= 0.5*(kF1*(u-c*n[0]) + kF234_0*u      + kF234_1*(uR - uL - (VR-VL)*n[0])             + kF5*(u+c*n[0]));
         f[2] -= 0.5*(kF1*(v-c*n[1]) + kF234_0*v      + kF234_1*(vR - vL - (VR-VL)*n[1])             + kF5*(v+c*n[1]));
         f[3] -= 0.5*(kF1*(h-c*V)    + kF234_0*q2*0.5 + kF234_1*(u*(uR-uL) + v*(vR-vL) - V*(VR-VL))  + kF5*(h+c*V)); 
-        f[4] -= 0.5*abs(V+c)*(qj[4] - qi[4]);
+        f[4] -= 0.5*(abs(V)+c)*(qj[4] - qi[4]);
 
         // Gradients for viscous fluxes
         // Diffusion equation
@@ -217,6 +290,17 @@ namespace fvhyper {
             qc[i] = 0.5*(qi[i] + qj[i]);
         }
 
+        // SA things
+        const double nu_L = consts::mu / qc[0];
+        const double Cv1 = 7.1;
+
+        const double nu_tilda = qc[4] * consts::nu_scale;
+        const double X = nu_tilda / nu_L;
+        const double X3 = X*X*X;
+
+        const double fv1 = (X3)/(X3 + Cv1*Cv1*Cv1);
+        const double nu_T = fv1 * nu_tilda;
+
         // Temperature gradient, null for now
         double gradT[2];
         calc_grad_t(gradT, qc, gx, gy);
@@ -225,22 +309,32 @@ namespace fvhyper {
         calc_grad_u(gradu, qc, gx, gy);
         calc_grad_v(gradv, qc, gx, gy);
 
+        // Total viscosity
+        const double mu_T = qc[0] * nu_T;
+        const double mu_tot = consts::mu + mu_T;
+
         // Viscous stresses
         const double div_v = gradu[0] + gradv[1];
-        const double tau_xx = 2. * consts::mu * (gradu[0] - div_v/3.);
-        const double tau_yy = 2. * consts::mu * (gradv[1] - div_v/3.);
-        const double tau_xy = consts::mu * (gradu[1] + gradv[0]);
+        const double tau_xx = 2. * mu_tot * (gradu[0] - div_v/3.);
+        const double tau_yy = 2. * mu_tot * (gradv[1] - div_v/3.);
+        const double tau_xy = mu_tot * (gradu[1] + gradv[0]);
 
         double phi[2];
-        const double k = consts::cp * consts::mu / consts::pr;
+        const double k = consts::cp * (consts::mu / consts::pr + mu_T / consts::pr_T);
         phi[0] = qc[1]/qc[0]*tau_xx + qc[2]/qc[0]*tau_xy + k*gradT[0];
         phi[1] = qc[1]/qc[0]*tau_xy + qc[2]/qc[0]*tau_yy + k*gradT[1];
 
+        // Turbulence
+        const double sigma = 2./3.;
+
+        const double tau_xx_T = 1/sigma*(nu_L + nu_tilda)*(gx[4]*consts::nu_scale);
+        const double tau_yy_T = 1/sigma*(nu_L + nu_tilda)*(gy[4]*consts::nu_scale);
+
         // Viscous fluxes
-        f[1] -= n[0]*tau_xx + n[1]*tau_xy;
-        f[2] -= n[0]*tau_xy + n[1]*tau_yy;
-        f[3] -= n[0]*phi[0] + n[1]*phi[1];
-        f[4] -= n[0]*(1);
+        f[1] -= n[0]*tau_xx   + n[1]*tau_xy;
+        f[2] -= n[0]*tau_xy   + n[1]*tau_yy;
+        f[3] -= n[0]*phi[0]   + n[1]*phi[1];
+        f[4] -= (n[0]*tau_xx_T + n[1]*tau_xx_T)/consts::nu_scale;
     }
 
     /*
@@ -249,6 +343,8 @@ namespace fvhyper {
     void calc_dt(
         std::vector<double>& dt,
         const std::vector<double>& q,
+        const std::vector<double>& gx,
+        const std::vector<double>& gy,
         mesh& m
     ) {
 
@@ -257,9 +353,9 @@ namespace fvhyper {
 
         // Set max dt
         for (uint i=0; i<dt.size(); ++i) {
-            dt[i] = 1.0;
+            dt[i] = 0.0;
         }
-        // Calculate time step
+        // Calculate time step scale
         for (uint e=0; e<m.edgesNodes.cols(); ++e) {
             double n[2];
 
@@ -285,13 +381,30 @@ namespace fvhyper {
             double eig_vj = std::max(4./(3.*qj[0]), consts::gamma/qj[0])
                             * (consts::mu/consts::pr) * le*le / m.cellsAreas[j];
 
-            double dt_i = cfl * m.cellsAreas[i] / (eig_ci + C*eig_vi);
-            double dt_j = cfl * m.cellsAreas[j] / (eig_cj + C*eig_vj);
-
             for (uint k=0; k<vars; ++k) {
-                dt[vars*i + k] = std::min(dt[vars*i + k], dt_i);
-                dt[vars*j + k] = std::min(dt[vars*j + k], dt_j);
+                dt[vars*i + k] += eig_ci + C*eig_vi;
+                dt[vars*j + k] += eig_cj + C*eig_vj;
             }
+        }
+        // Compute resulting dt from cfl
+        for (uint i=0; i<m.cellsAreas.size(); ++i) {
+            // Calc source term jacobian
+            double source[vars];
+            double source_p[vars];
+            double q_p[vars];
+            for (int k=0; k<vars; ++k)
+                q_p[k] = q[vars*i+k];
+            q_p[4] += 1e-4;
+            calc_source(source, &q[vars*i], &gx[vars*i], &gy[vars*i], m.wall_dist[i]);
+            calc_source(source_p, q_p, &gx[vars*i], &gy[vars*i], m.wall_dist[i]);
+
+            double eig_source = abs(source_p[4] - source[4])/1e-4;
+
+            // Compute dt
+            for (uint k=0; k<vars-1; ++k) {
+                dt[vars*i + k] = cfl * m.cellsAreas[i]/dt[vars*i + k];
+            }
+            dt[vars*i + vars-1] = cfl * std::min(m.cellsAreas[i]/dt[vars*i + vars-1], 1./eig_source);
         }
     }
 
@@ -310,6 +423,7 @@ namespace fvhyper {
             bv[1] = bv[0] * 0.2;
             bv[2] = bv[0] * 0.0;
             bv[3] = b_pressure / (consts::gamma - 1) + 0.5/bv[0]*(bv[1]*bv[1] + bv[2]*bv[2]);
+            bv[4] = (consts::mu / bv[0]) * 0.1 / consts::nu_scale;
 
             double U[2];
             U[0] = q[1]/q[0];
@@ -329,12 +443,14 @@ namespace fvhyper {
                     b[1] = bv[1];
                     b[2] = bv[2];
                     b[3] = bv[3];
+                    b[4] = bv[4];
                 } else {
                     // Outlet
                     b[0] = q[0];
                     b[1] = q[1];
                     b[2] = q[2];
                     b[3] = q[3];
+                    b[4] = q[4];
                 }
             } else {
                 // Subsonic
@@ -360,6 +476,7 @@ namespace fvhyper {
                     b[1] = b[0] * (ua - n[0]*(pa - pb)/(rho0*c0));
                     b[2] = b[0] * (va - n[1]*(pa - pb)/(rho0*c0));
                     b[3] = pb / (consts::gamma - 1) + 0.5/b[0]*(b[1]*b[1] + b[2]*b[2]);
+                    b[4] = bv[4];
                 } else {
                     // Outlet
                     double pb = pa;
@@ -367,6 +484,7 @@ namespace fvhyper {
                     b[1] = b[0] * (ud + n[0]*(pd - pb)/(rho0*c0));
                     b[2] = b[0] * (va + n[1]*(pd - pb)/(rho0*c0));
                     b[3] = pb / (consts::gamma - 1) + 0.5/b[0]*(b[1]*b[1] + b[2]*b[2]);
+                    b[4] = q[4];
                 }
             }
         }
@@ -376,18 +494,20 @@ namespace fvhyper {
             b[1] = q[1] - 2.0 * n[0] * (n[0]*q[1] + n[1]*q[2]);
             b[2] = q[2] - 2.0 * n[1] * (n[0]*q[1] + n[1]*q[2]);
             b[3] = q[3];
+            b[4] = q[4];
         }
         void wall(double* b, double* q, double* n) {
             b[0] = q[0];
             b[1] = -q[1];
             b[2] = -q[2];
             b[3] = q[3];
+            b[4] = 0;
         }
         std::map<std::string, void (*)(double*, double*, double*)> 
         bounds = {
             {"top", farfield},
             {"bot0", slip_wall},
-            {"bot1", wall},
+            {"wall", wall},
             {"left", farfield},
             {"right", farfield}
         };
@@ -409,9 +529,25 @@ namespace fvhyper {
             p[0] = calc_p(q);
         }
 
+        void calc_output_muT(double* muT, double* q) {
+            // Compute muT, turbulent viscosity
+            const double nu_L = consts::mu / q[0];
+            const double Cv1 = 7.1;
+
+            const double nu_tilda = q[4] * consts::nu_scale;
+            const double X = nu_tilda / nu_L;
+            const double X3 = X*X*X;
+
+            const double fv1 = (X3)/(X3 + Cv1*Cv1*Cv1);
+            const double nu_T = fv1 * nu_tilda;
+            
+            muT[0] = nu_T*q[0];
+        }
+
         std::map<std::string, void (*)(double*, double*)> 
         extra_scalars = {
-            {"p", calc_output_p}
+            {"p", calc_output_p},
+            {"muT", calc_output_muT}
         };
         
         std::map<std::string, void (*)(double*, double*)> 
@@ -446,7 +582,7 @@ int main() {
     m.read_file(name, pool);
 
     fvhyper::solverOptions options;
-    options.max_step = 30000;
+    options.max_step = 10000;
     options.print_interval = 20;
     options.tolerance = 1e-20;
 

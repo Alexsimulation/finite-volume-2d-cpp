@@ -18,6 +18,9 @@ namespace fvhyper {
         "rhov",
         "rhoe"
     };
+    const std::vector<double> vars_limiters = {
+        1., 1., 1., 1.
+    };
     namespace solver {
         const bool do_calc_gradients = false;
         const bool do_calc_limiters = false;
@@ -25,6 +28,7 @@ namespace fvhyper {
         const bool diffusive_gradients = false;
         const bool global_dt = true;
         const bool smooth_residuals = false;
+        const bool source_term = false;
     }
 
     namespace consts {
@@ -63,6 +67,19 @@ namespace fvhyper {
             const double b = -3.0/2.0*a*yt - 0.5/yt;
             return a*y*y*y + b*y*y + y;
         }
+    }
+
+    /*
+        Define source function
+    */
+    void calc_source(
+        double* s,
+        const double* q,
+        const double* gx,
+        const double* gy,
+        const double& wall_dist
+    ) {
+
     }
 
     /*
@@ -140,6 +157,8 @@ namespace fvhyper {
     void calc_dt(
         std::vector<double>& dt,
         const std::vector<double>& q,
+        const std::vector<double>& gx,
+        const std::vector<double>& gy,
         mesh& m
     ) {
 

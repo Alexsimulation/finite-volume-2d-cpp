@@ -24,7 +24,7 @@ namespace fvhyper {
 
 
 namespace solver {
-    const double limiter_k_value = 7.5;
+    const double limiter_k_value = 10.;
 }
 
 
@@ -308,8 +308,8 @@ void calc_time_derivatives(
             for (uint k=0; k<vars; ++k) {
                 const uint ki = vars*i+k;
                 const uint kj = vars*j+k;
-                qi[k] = q[ki] + (gx[ki]*di[0] + gy[ki]*di[1])*limiters[ki];
-                qj[k] = q[kj] + (gx[kj]*dj[0] + gy[kj]*dj[1])*limiters[kj];
+                qi[k] = q[ki] + (gx[ki]*di[0] + gy[ki]*di[1])*limiters[ki]*vars_limiters[k];
+                qj[k] = q[kj] + (gx[kj]*dj[0] + gy[kj]*dj[1])*limiters[kj]*vars_limiters[k];
             }
         } else {
             for (uint k=0; k<vars; ++k) {
@@ -353,7 +353,7 @@ void calc_time_derivatives(
         for (uint i=0; i<m.nRealCells; ++i) {
 
             double source[vars];
-            calc_source(source, &q[vars*i], &gx[vars*i], &gy[vars*i]);
+            calc_source(source, &q[vars*i], &gx[vars*i], &gy[vars*i], m.wall_dist[i]);
             for (uint k=0; k<vars; ++k) {
                 qt[vars*i+k] += source[k] * m.cellsAreas[i];
             }
@@ -410,7 +410,7 @@ void update_bounds(
             di[1] = m.edgesCentersY[e] - m.cellsCentersY[id_internal];
             for (uint i=0; i<vars; ++i) {
                 const uint k = vars*id_internal+i;
-                q_int[i] = q[k] + (gx[k]*di[0] + gy[k]*di[1])*limiters[k];
+                q_int[i] = q[k] + (gx[k]*di[0] + gy[k]*di[1])*limiters[k]*vars_limiters[i];
             }
         } else {
             for (uint k=0; k<vars; ++k) {
@@ -718,6 +718,10 @@ void run(
     double save_time = opt.time_series_interval;
     uint time_step = 0;
 
+    if (solver::do_calc_gradients) {
+        calc_gradients(gx, gy, q, m);
+    }
+
     // Init the ghost cells with boundary conditions
     update_bounds(q, gx, gy, limiters, m);
 
@@ -736,7 +740,7 @@ void run(
         }
 
         // Compute time step and update comms with dt
-        calc_dt(dt, q, m);
+        calc_dt(dt, q, gx, gy, m);
         if (pool.size > 1) update_comms(dt, m);
         if (solver::global_dt) {
             min_dt(dt, m);
