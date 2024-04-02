@@ -1,6 +1,6 @@
 
-<h1 align="center">fvhyper</h1>
-<p align="center"><i>Finite volume framework for high performance</i></p>
+<h1 align="center">finite-volume-2d-cpp</h1>
+<p align="center"><i>Finite volume framework for parallel explicit computations in 2D in C++</i></p>
 <br>
 
 <!-- Badges -->
